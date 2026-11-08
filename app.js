@@ -294,6 +294,7 @@
       else if (m.tipo === "pausa") ponPausa(tocando);
       else if (m.tipo === "negro") ponNegro(!negro);
       else if (m.tipo === "hola") avisa();
+      else if (m.tipo === "recargar") setTimeout(() => location.reload(), 300);
     });
   }
 

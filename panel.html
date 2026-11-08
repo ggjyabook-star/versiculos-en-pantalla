@@ -55,6 +55,11 @@ svg .lleno { fill: currentColor; stroke: none; }
 .remoto .r-sig { background: rgba(241,210,154,.16); color: var(--oro); padding: 0 12px 0 14px; }
 .remoto .r-sig:hover { background: rgba(241,210,154,.26); }
 .remoto.apagado button { opacity: .35; pointer-events: none; }
+@media (max-width: 1440px) {
+  #actualizar { padding: 0 11px; }
+  #actualizar span { display: none; }
+  .remoto .estado { max-width: 220px; }
+}
 .modo { display: inline-flex; padding: 4px; gap: 2px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); margin-left: auto; }
 .modo button { height: 36px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--tenue); font-weight: 600; font-size: 13px; }
 .modo button[aria-pressed="true"] { background: var(--panel2); color: var(--texto); box-shadow: inset 0 0 0 1px rgba(241,210,154,.45); }
@@ -83,6 +88,13 @@ svg .lleno { fill: currentColor; stroke: none; }
 .secundario.confirmar { background: #5a1f24; color: #fff; border-color: #a33; }
 
 .lado-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.pestanas { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 12px 12px 0; padding: 4px; border-radius: 12px; background: var(--fondo); border: 1px solid var(--borde); }
+.pestanas button { position: relative; height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--tenue); font-weight: 700; font-size: 14.5px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.pestanas button:hover { color: var(--texto); }
+.pestanas button[aria-selected="true"] { background: var(--panel2); color: var(--texto); box-shadow: inset 0 0 0 1px rgba(241,210,154,.45); }
+.pestanas .cuenta { font-size: 11.5px; font-weight: 700; color: var(--oro); background: rgba(241,210,154,.14); border-radius: 6px; padding: 1px 6px; font-variant-numeric: tabular-nums; }
+.pestanas button.al-aire::after { content: ""; position: absolute; top: 7px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--aire); box-shadow: 0 0 0 3px rgba(255,93,93,.2); }
+.lado-cab p { margin: 0; font-size: 12.5px; color: var(--tenue); }
 .lista { list-style: none; margin: 0; padding: 0 8px 16px; }
 .lado-cab.seccion { border-top: 1px solid var(--borde); padding-top: 18px; }
 .nota-lado { margin: 0; padding: 0 16px 20px; font-size: 12.5px; color: var(--tenue); }
@@ -189,7 +201,8 @@ body.soltando::after {
   .remoto { order: 4; margin-left: 0; width: 100%; }
   .modo { order: 3; margin-left: 0; }
   .remoto .estado { max-width: none; flex: 1; }
-  .barra .primario { margin-left: auto; }
+  .barra #actualizar { margin-left: auto; }
+  #actualizar span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
@@ -208,6 +221,10 @@ body.soltando::after {
     <button type="button" id="rNegro" aria-pressed="false" title="Poner la pantalla en negro">Negro</button>
     <span class="estado"><span class="punto"></span><span id="enAire">La proyección no está abierta</span></span>
   </div>
+  <button type="button" class="secundario" id="actualizar" title="Borra la copia guardada de la página y la vuelve a cargar con lo más nuevo. Tus versículos, canciones e imágenes no se borran." style="height:42px">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg>
+    <span>Actualizar</span>
+  </button>
   <button type="button" class="primario" id="abrir">
     <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
     Abrir proyección
@@ -216,12 +233,15 @@ body.soltando::after {
 
 <div class="marco">
   <aside class="lado">
-    <div class="lado-cab">
-      <div>
-        <h2>Versículos</h2>
-        <p id="cuantos"></p>
-      </div>
-      <div class="agregar">
+    <div class="pestanas" role="tablist" aria-label="Qué quieres ver">
+      <button type="button" role="tab" id="tabVersos" aria-selected="true" aria-controls="seccionVersos">Versículos <span class="cuenta" id="cuentaVersos"></span></button>
+      <button type="button" role="tab" id="tabCanciones" aria-selected="false" aria-controls="seccionCanciones">Canciones <span class="cuenta" id="cuentaCanciones"></span></button>
+    </div>
+    <div class="lado-scroll">
+      <section id="seccionVersos" role="tabpanel" aria-labelledby="tabVersos">
+        <div class="lado-cab">
+          <p id="cuantos"></p>
+          <div class="agregar">
         <button type="button" class="secundario" id="agregar" title="Agregar un versículo o texto">
           <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           Versículo
@@ -232,20 +252,17 @@ body.soltando::after {
         </button>
         <input type="file" id="archivoImg" accept="image/*" multiple hidden>
       </div>
-    </div>
-    <div class="lado-scroll">
-      <div class="marcar">
+        </div>
+        <div class="marcar">
         <button type="button" id="marcarTodos">Marcar todos</button>
         <button type="button" id="desmarcarTodos">Quitar todos</button>
       </div>
-      <ul class="lista" id="lista" aria-label="Versículos e imágenes de la presentación"></ul>
-
-      <div class="lado-cab seccion">
-        <div>
-          <h2>Canciones</h2>
+        <ul class="lista" id="lista" aria-label="Versículos e imágenes de la presentación"></ul>
+      </section>
+      <section id="seccionCanciones" role="tabpanel" aria-labelledby="tabCanciones" hidden>
+        <div class="lado-cab">
           <p id="cuantasCanciones"></p>
-        </div>
-        <div class="agregar">
+          <div class="agregar">
           <button type="button" class="secundario" id="agregarCancion" title="Escribir o pegar una letra">
             <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             Canción
@@ -256,8 +273,8 @@ body.soltando::after {
           </button>
           <input type="file" id="archivoCancion" accept=".qsp,.zip,.txt,.docx,.pptx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" multiple hidden>
         </div>
-      </div>
-      <div class="buscar-cancion">
+        </div>
+        <div class="buscar-cancion">
         <input type="search" id="buscarCancion" placeholder="Buscar canción por título o letra" autocomplete="off" aria-label="Buscar canción">
       </div>
       <div class="marcar">
@@ -266,7 +283,8 @@ body.soltando::after {
       </div>
       <ul class="lista" id="listaCanciones" aria-label="Canciones"></ul>
       <p class="nota-lado" id="masCanciones" hidden></p>
-      <p class="nota-lado" id="sinCanciones">Agrega una canción escribiendo la letra o sube un archivo de texto, Word, PowerPoint, PDF o un paquete de canciones de Quelea (.qsp).</p>
+        <p class="nota-lado" id="sinCanciones">Agrega una canción escribiendo la letra o sube un archivo de texto, Word, PowerPoint, PDF o un paquete de canciones de Quelea (.qsp).</p>
+      </section>
     </div>
   </aside>
 

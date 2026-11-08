@@ -43,9 +43,36 @@
     const otros = lista.filter((v) => !esCancion(v)), canciones = lista.filter(esCancion);
     const on = (l) => l.filter((v) => v.activo !== false && VP.tieneContenido(v)).length;
     elCuantos.textContent = `${on(otros)} de ${otros.length} en la presentación`;
-    $("cuantasCanciones").textContent = canciones.length ? `${on(canciones)} de ${canciones.length} en la presentación` : "";
+    $("cuantasCanciones").textContent = canciones.length ? `${on(canciones)} de ${canciones.length} en la presentación` : "Todavía no hay canciones";
     $("sinCanciones").hidden = canciones.length > 0;
+    // en la pestaña: cuántas van en la presentación
+    $("cuentaVersos").textContent = on(otros);
+    $("cuentaCanciones").textContent = on(canciones);
+    const aire = lista.find((v) => v.id === enPantalla);
+    $("tabVersos").classList.toggle("al-aire", !!aire && !esCancion(aire));
+    $("tabCanciones").classList.toggle("al-aire", !!aire && esCancion(aire));
   }
+
+  // ---------- Pestañas: Versículos | Canciones ----------
+  let pestana = VP.leer("pestana") === "canciones" ? "canciones" : "versos";
+  function ponPestana(p) {
+    pestana = p;
+    const can = p === "canciones";
+    $("seccionVersos").hidden = can;
+    $("seccionCanciones").hidden = !can;
+    $("tabVersos").setAttribute("aria-selected", String(!can));
+    $("tabCanciones").setAttribute("aria-selected", String(can));
+    VP.guardar("pestana", p);
+    // al cambiar de pestaña se abre lo que tenías elegido ahí (o el primero)
+    const actual = elegido();
+    if (!actual || esCancion(actual) !== can) {
+      const otro = lista.find((v) => v.id === (can ? selCancion : selVerso)) || lista.find((v) => esCancion(v) === can);
+      if (otro) selecciona(otro.id, true); else { sel = null; pintaLista(); pintaEditor(true); }
+    }
+  }
+  let selVerso = null, selCancion = null;
+  $("tabVersos").addEventListener("click", () => ponPestana("versos"));
+  $("tabCanciones").addEventListener("click", () => ponPestana("canciones"));
   // Número de turno de cada elemento marcado (primero versículos e imágenes, luego canciones)
   let numeros = {};
   function numera() {
@@ -188,9 +215,15 @@
 
   // ---------- Editor ----------
   let estrofaSel = 0;
-  function selecciona(id) {
+  function selecciona(id, desdePestana) {
     sel = id;
     estrofaSel = 0;
+    const v = elegido();
+    if (v) {
+      if (esCancion(v)) selCancion = id; else selVerso = id;
+      // si lo elegido es de la otra sección, cambia de pestaña
+      if (!desdePestana && (esCancion(v) ? "canciones" : "versos") !== pestana) { pestana = esCancion(v) ? "canciones" : "versos"; ponPestana(pestana); }
+    }
     pintaLista();
     pintaEditor(true);
     const li = document.querySelector(".lado .item.sel");
@@ -962,10 +995,38 @@
 
   // ---------- Inicio ----------
   midaBarra();
+  if (elegido()) { if (esCancion(elegido())) selCancion = sel; else selVerso = sel; }
+  ponPestana(pestana);
   pintaLista();
   pintaEditor(true);
   if (document.fonts) document.fonts.ready.then(ajustaPrevia);
   requestAnimationFrame(cuadro);
+
+  // Botón Actualizar: borra la copia guardada de la página (no tus datos) y recarga panel y proyección
+  $("actualizar").addEventListener("click", async () => {
+    const b = $("actualizar");
+    const texto = b.querySelector("span");
+    // Sin internet no se borra nada: si no, se perdería la copia para usar sin conexión
+    let hayRed = navigator.onLine;
+    if (hayRed) {
+      try { await fetch("sw.js?comprobar=" + Date.now(), { cache: "no-store" }); } catch (e) { hayRed = false; }
+    }
+    if (!hayRed) {
+      texto.textContent = "Sin internet";
+      avisa("Para actualizar se necesita internet. Sin conexión la página sigue funcionando con la copia guardada.", "error");
+      setTimeout(() => { texto.textContent = "Actualizar"; }, 3000);
+      return;
+    }
+    b.disabled = true;
+    texto.textContent = "Actualizando…";
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+    try {
+      const regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+      for (const r of regs) await r.unregister();
+    } catch (e) {}
+    manda({ tipo: "recargar" });
+    setTimeout(() => location.reload(), 400);
+  });
 
   // Copia para usar sin internet (la página, sus archivos y las librerías de lectura)
   if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
