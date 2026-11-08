@@ -244,7 +244,7 @@
     else if (k === "f") pantallaCompleta();
     else if (k === "r") ponAzar(!azar);
     else if (k === "b" || k === ".") ponNegro(!negro);
-    despierta();
+    // las teclas (y el control de presentación) no muestran los controles
   });
 
   // Cambios hechos en el panel (misma computadora)
@@ -265,14 +265,24 @@
     });
   }
 
-  // Esconde controles y cursor cuando nadie mueve el ratón
+  // Controles: en ventana aparecen al mover el ratón; en pantalla completa solo al hacer clic o tocar
   let reloj;
+  const completa = () => !!document.fullscreenElement;
+  function duerme() {
+    clearTimeout(reloj);
+    document.body.classList.add("quieto");
+  }
   function despierta() {
     document.body.classList.remove("quieto");
     clearTimeout(reloj);
-    reloj = setTimeout(() => document.body.classList.add("quieto"), 3200);
+    reloj = setTimeout(duerme, completa() ? 2500 : 3200);
   }
-  ["mousemove", "pointerdown", "touchstart"].forEach((ev) => addEventListener(ev, despierta, { passive: true }));
+  addEventListener("mousemove", () => { if (!completa()) despierta(); }, { passive: true });
+  ["pointerdown", "touchstart"].forEach((ev) => addEventListener(ev, despierta, { passive: true }));
+  document.addEventListener("fullscreenchange", () => {
+    if (completa()) { duerme(); $("ayuda").classList.add("fuera"); }
+    ajusta();
+  });
   setTimeout(() => $("ayuda").classList.add("fuera"), 7000);
 
   // Mantiene la pantalla encendida mientras se proyecta
