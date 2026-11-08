@@ -1,5 +1,5 @@
 // Guarda la presentación para que siga funcionando sin internet (útil en el templo)
-const VERSION = "vp-3";
+const VERSION = "vp-4";
 const ARCHIVOS = ["./", "index.html", "panel.html", "versiculos.js", "fondos.js", "comun.js", "app.js", "panel.js"];
 
 self.addEventListener("install", (e) => {

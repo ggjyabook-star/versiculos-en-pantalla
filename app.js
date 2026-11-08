@@ -60,6 +60,7 @@
   const nuevoOrden = () => (azar ? baraja() : VERSOS.map((_, i) => i));
   function duracion(v) {
     if (!v) return 10;
+    if (modo === "manual") return Infinity;
     if (modo === "auto") return Math.min(24, Math.max(10, 6 + v.texto.length * 0.07));
     return Number(modo) || 15;
   }
@@ -162,7 +163,11 @@
   function avisa() {
     if (!VP.canal) return;
     const v = escena.hidden ? null : actual();
-    VP.canal.postMessage({ tipo: "estado", id: v ? v.id : null, tocando, negro, restante: Math.max(0, Math.ceil(restante)), pos: pos + 1, n: orden.length });
+    const sig = orden.length ? VERSOS[orden[(pos + 1) % orden.length]] : null;
+    VP.canal.postMessage({
+      tipo: "estado", id: v ? v.id : null, sigId: sig ? sig.id : null, tocando, negro, manual: modo === "manual",
+      restante: isFinite(restante) ? Math.max(0, Math.ceil(restante)) : null, pos: pos + 1, n: orden.length,
+    });
   }
 
   // ---------- Bucle ----------
@@ -180,7 +185,7 @@
       restante -= dt;
       if (restante <= 0) siguiente();
     }
-    barra.style.transform = `scaleX(${Math.max(0, Math.min(1, 1 - restante / total))})`;
+    barra.style.transform = `scaleX(${isFinite(total) ? Math.max(0, Math.min(1, 1 - restante / total)) : 0})`;
     requestAnimationFrame(cuadro);
   }
 

@@ -52,7 +52,18 @@ svg .lleno { fill: currentColor; stroke: none; }
 .remoto button[aria-pressed="true"] { background: #000; color: var(--oro); box-shadow: inset 0 0 0 1px var(--oro); }
 .remoto .estado { font-size: 13px; color: var(--tenue); padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; display: flex; align-items: center; gap: 8px; }
 .remoto .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--aire); box-shadow: 0 0 0 4px rgba(255,93,93,.18); flex: none; }
+.remoto .r-sig { background: rgba(241,210,154,.16); color: var(--oro); padding: 0 12px 0 14px; }
+.remoto .r-sig:hover { background: rgba(241,210,154,.26); }
 .remoto.apagado button { opacity: .35; pointer-events: none; }
+.modo { display: inline-flex; padding: 4px; gap: 2px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); margin-left: auto; }
+.modo button { height: 36px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--tenue); font-weight: 600; font-size: 13px; }
+.modo button[aria-pressed="true"] { background: var(--panel2); color: var(--texto); box-shadow: inset 0 0 0 1px rgba(241,210,154,.45); }
+.modo + .remoto { margin-left: 0; }
+.num { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: rgba(241,210,154,.16); color: var(--oro); font-size: 11.5px; font-weight: 700; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
+.sig-tag { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--oro); border: 1px solid rgba(241,210,154,.5); border-radius: 4px; padding: 0 5px; }
+.marcar { display: flex; gap: 6px; padding: 0 16px 10px; flex-wrap: wrap; }
+.marcar button { border: 0; background: transparent; color: var(--tenue); font-size: 12.5px; font-weight: 600; padding: 4px 8px; border-radius: 7px; }
+.marcar button:hover { background: rgba(255,255,255,.06); color: var(--texto); }
 .remoto.apagado .punto { background: #555; box-shadow: none; }
 .primario { height: 42px; padding: 0 18px; border: 0; border-radius: 11px; background: var(--oro); color: #1d1405; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
 .primario:hover { background: #f6dcae; }
@@ -140,7 +151,8 @@ textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--
 @media (max-width: 900px) {
   .marco { grid-template-columns: minmax(0, 1fr); }
   .lado { position: static; height: auto; max-height: 46vh; border-right: 0; border-bottom: 1px solid var(--borde); }
-  .remoto { order: 3; margin-left: 0; width: 100%; }
+  .remoto { order: 4; margin-left: 0; width: 100%; }
+  .modo { order: 3; margin-left: 0; }
   .remoto .estado { max-width: none; flex: 1; }
   .barra .primario { margin-left: auto; }
 }
@@ -150,10 +162,14 @@ textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--
 <body>
 <header class="barra">
   <a class="marca" href="./" target="vp-proyeccion">Versículos en Pantalla<span>Panel</span></a>
+  <div class="modo" role="group" aria-label="Cómo avanzan los versículos">
+    <button type="button" id="mAuto" aria-pressed="true" title="Pasan solos con el tiempo elegido">Automático</button>
+    <button type="button" id="mManual" aria-pressed="false" title="Solo cambian cuando le das Siguiente">Manual</button>
+  </div>
   <div class="remoto apagado" id="remoto" aria-label="Control de la proyección">
     <button type="button" id="rAnt" aria-label="Versículo anterior" title="Anterior"><svg class="ico" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button type="button" id="rPausa" aria-label="Pausar o seguir" title="Pausa"><svg class="ico" viewBox="0 0 24 24" id="rPausaIco"><rect class="lleno" x="6" y="5" width="4" height="14" rx="1"/><rect class="lleno" x="14" y="5" width="4" height="14" rx="1"/></svg></button>
-    <button type="button" id="rSig" aria-label="Siguiente versículo" title="Siguiente"><svg class="ico" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button type="button" id="rSig" class="r-sig" title="Siguiente (también con → o el control de presentación)">Siguiente<svg class="ico" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
     <button type="button" id="rNegro" aria-pressed="false" title="Poner la pantalla en negro">Negro</button>
     <span class="estado"><span class="punto"></span><span id="enAire">La proyección no está abierta</span></span>
   </div>
@@ -174,6 +190,10 @@ textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--
         <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         Agregar
       </button>
+    </div>
+    <div class="marcar">
+      <button type="button" id="marcarTodos">Marcar todos</button>
+      <button type="button" id="desmarcarTodos">Quitar todos</button>
     </div>
     <ul class="lista" id="lista" aria-label="Versículos de la presentación"></ul>
   </aside>
@@ -240,6 +260,7 @@ textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--
             <option value="20">20 segundos</option>
             <option value="30">30 segundos</option>
             <option value="60">1 minuto</option>
+            <option value="manual">Manual: cambia solo cuando le doy Siguiente</option>
           </select>
           <label><input type="checkbox" id="azar"> Orden al azar</label>
         </div>

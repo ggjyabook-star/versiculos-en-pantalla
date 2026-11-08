@@ -5,7 +5,8 @@
 
   let lista = VP.lista();
   let sel = lista[0] ? lista[0].id : null;
-  let enPantalla = null, ultimoEstado = 0, estado = {};
+  let enPantalla = null, sigPantalla = null, ultimoEstado = 0, estado = {};
+  let cajaAzar = null;
 
   const elLista = $("lista"), elCuantos = $("cuantos"), inCita = $("cita"), inTexto = $("texto");
   const elFondos = $("fondos"), aviso = $("aviso"), guardado = $("guardado");
@@ -38,17 +39,37 @@
     const activos = lista.filter((v) => v.activo !== false && v.texto.trim()).length;
     elCuantos.textContent = `${activos} de ${lista.length} en la presentación`;
   }
+  // Número de turno de cada versículo marcado (en el orden de la lista)
+  let numeros = {};
+  function numera() {
+    numeros = {};
+    if (cajaAzar && cajaAzar.checked) return;
+    let n = 0;
+    for (const v of lista) if (v.activo !== false && v.texto.trim()) numeros[v.id] = ++n;
+  }
   function pintaLista() {
     cuenta();
+    numera();
     elLista.innerHTML = "";
     for (const v of lista) elLista.appendChild(itemLista(v));
   }
   function rellenaItem(li, v) {
     const ref = li.querySelector(".ref");
-    ref.textContent = v.ref.trim() || "Sin cita";
+    ref.textContent = "";
+    if (numeros[v.id]) {
+      const n = document.createElement("span");
+      n.className = "num"; n.textContent = numeros[v.id];
+      n.title = "Turno en la presentación";
+      ref.appendChild(n);
+    }
+    ref.appendChild(document.createTextNode(v.ref.trim() || "Sin cita"));
     if (v.id === enPantalla) {
       const a = document.createElement("span");
       a.className = "aire"; a.textContent = "EN PANTALLA";
+      ref.appendChild(a);
+    } else if (v.id === sigPantalla) {
+      const a = document.createElement("span");
+      a.className = "sig-tag"; a.textContent = "SIGUE";
       ref.appendChild(a);
     }
     li.querySelector(".frag").textContent = v.texto.replace(/\n/g, " ").trim() || "Falta el texto";
@@ -69,8 +90,9 @@
     caja.checked = v.activo !== false;
     caja.addEventListener("change", () => {
       v.activo = caja.checked;
-      li.classList.toggle("apagado", !caja.checked);
-      cuenta(); guarda(true);
+      guarda(true); pintaLista();
+      const otra = elLista.querySelector(`[data-id="${CSS.escape(v.id)}"] .activo`);
+      if (otra) otra.focus();
     });
     li.querySelector(".info").addEventListener("click", () => selecciona(v.id));
     rellenaItem(li, v);
@@ -363,12 +385,37 @@
   });
 
   // Ajustes de la presentación
-  const selTiempo = $("tiempo"), cajaAzar = $("azar");
+  const selTiempo = $("tiempo");
+  cajaAzar = $("azar");
+  let ultimoAuto = "auto";
+  function pintaModo() {
+    const manual = selTiempo.value === "manual";
+    $("mAuto").setAttribute("aria-pressed", String(!manual));
+    $("mManual").setAttribute("aria-pressed", String(manual));
+    if (!manual) ultimoAuto = selTiempo.value;
+  }
+  function ponTiempo(v) {
+    selTiempo.value = v;
+    if (!selTiempo.value) selTiempo.value = "auto";
+    VP.guardar("tiempo", selTiempo.value);
+    pintaModo();
+  }
   selTiempo.value = VP.leer("tiempo") || "auto";
   if (!selTiempo.value) selTiempo.value = "auto";
   cajaAzar.checked = VP.leer("azar") === "1";
-  selTiempo.addEventListener("change", () => VP.guardar("tiempo", selTiempo.value));
-  cajaAzar.addEventListener("change", () => VP.guardar("azar", cajaAzar.checked ? "1" : "0"));
+  pintaModo();
+  selTiempo.addEventListener("change", () => ponTiempo(selTiempo.value));
+  $("mAuto").addEventListener("click", () => ponTiempo(ultimoAuto));
+  $("mManual").addEventListener("click", () => ponTiempo("manual"));
+  cajaAzar.addEventListener("change", () => { VP.guardar("azar", cajaAzar.checked ? "1" : "0"); pintaLista(); });
+
+  // Elegir varios de un jalón
+  $("marcarTodos").addEventListener("click", () => { for (const v of lista) v.activo = true; guarda(true); pintaLista(); });
+  $("desmarcarTodos").addEventListener("click", () => {
+    for (const v of lista) v.activo = false;
+    guarda(true); pintaLista();
+    avisa("Ahora marca solo los versículos que vas a usar.");
+  });
 
   // ---------- Control de la proyección ----------
   const manda = (m) => VP.canal && VP.canal.postMessage(m);
@@ -397,13 +444,15 @@
     $("remoto").classList.toggle("apagado", !ok);
     if (!ok) {
       $("enAire").textContent = "La proyección no está abierta";
-      if (enPantalla) { enPantalla = null; pintaLista(); }
+      if (enPantalla || sigPantalla) { enPantalla = sigPantalla = null; pintaLista(); }
       return;
     }
     const v = lista.find((x) => x.id === estado.id);
+    const s = lista.find((x) => x.id === estado.sigId);
     let t = v ? `En pantalla: ${v.ref || "sin cita"}` : "Proyección abierta";
     if (estado.negro) t = "Pantalla en negro · " + t;
-    t += estado.tocando ? ` · cambia en ${estado.restante} s` : " · en pausa";
+    if (estado.manual) t += s && s !== v ? ` · sigue: ${s.ref || "sin cita"}` : "";
+    else t += estado.tocando ? ` · cambia en ${estado.restante} s` : " · en pausa";
     $("enAire").textContent = t;
     $("rNegro").setAttribute("aria-pressed", String(!!estado.negro));
     $("rPausaIco").innerHTML = estado.tocando
@@ -415,11 +464,22 @@
       const m = e.data || {};
       if (m.tipo !== "estado") return;
       estado = m; ultimoEstado = Date.now();
-      if (enPantalla !== m.id) { enPantalla = m.id; pintaLista(); }
+      if (enPantalla !== m.id || sigPantalla !== m.sigId) { enPantalla = m.id; sigPantalla = m.sigId; pintaLista(); }
       pintaRemoto();
     });
     manda({ tipo: "hola" });
   }
+
+  // Siguiente/anterior con el teclado o con un control de presentación (manda → o AvPág)
+  addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (k === "ArrowRight" || k === "PageDown") { e.preventDefault(); manda({ tipo: "sig" }); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); manda({ tipo: "ant" }); }
+    else if (k === "b" || k === "B" || k === ".") manda({ tipo: "negro" });
+  });
   setInterval(pintaRemoto, 1000);
 
   // Si otra pestaña del panel cambia la lista, la tomamos
@@ -428,8 +488,8 @@
       lista = VP.lista();
       if (!elegido()) sel = lista[0] ? lista[0].id : null;
       pintaLista(); pintaEditor();
-    } else if (e.key === "vp-tiempo") selTiempo.value = e.newValue || "auto";
-    else if (e.key === "vp-azar") cajaAzar.checked = e.newValue === "1";
+    } else if (e.key === "vp-tiempo") { selTiempo.value = e.newValue || "auto"; if (!selTiempo.value) selTiempo.value = "auto"; pintaModo(); }
+    else if (e.key === "vp-azar") { cajaAzar.checked = e.newValue === "1"; pintaLista(); }
   });
 
   // ---------- Inicio ----------
