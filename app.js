@@ -23,13 +23,50 @@
     capa.nombre = nombre;
     capa.dibujar = def.crear(capa.cv.width, capa.cv.height);
   }
+  // Fondo propio (imagen o video que subieron): capa encima de los lienzos
+  const propio = $("fondoPropio"), propioImg = propio.querySelector("img"), propioVid = propio.querySelector("video");
+  let propioActual = null, propioTurno = 0;
+  async function muestraPropio(f) {
+    const capa = capas[activa];
+    if (!capa.oculta) { capa.cv.classList.remove("visible"); capa.hasta = performance.now() + 2600; capa.oculta = true; }
+    if (propioActual === f.id) {
+      propio.classList.add("visible");
+      if (f.tipo === "video") propioVid.play().catch(() => {});
+      return;
+    }
+    const mi = ++propioTurno;
+    const u = await VP.imagenes.url(f.blob);
+    if (mi !== propioTurno || !u) return;
+    propioActual = f.id;
+    propio.classList.toggle("es-video", f.tipo === "video");
+    propio.classList.toggle("es-img", f.tipo !== "video");
+    if (f.tipo === "video") { propioVid.src = u; propioVid.play().catch(() => {}); }
+    else { propioVid.pause(); propioImg.src = u; }
+    propio.classList.add("visible");
+  }
+  function ocultaPropio() {
+    propioTurno++;
+    if (!propio.classList.contains("visible")) return;
+    propio.classList.remove("visible");
+    setTimeout(() => { if (!propio.classList.contains("visible")) propioVid.pause(); }, 2500);
+  }
   function cambiaFondo(nombre) {
+    if (VP.esPropio(nombre)) {
+      const f = VP.fondosPropios().find((x) => x.id === nombre);
+      if (f) return muestraPropio(f);
+      nombre = "estrellas";
+    }
+    ocultaPropio();
     if (!FONDOS[nombre]) nombre = "estrellas";
     const actual = capas[activa];
-    if (actual.nombre === nombre) return;
+    if (actual.nombre === nombre) {
+      if (actual.oculta) { actual.oculta = false; actual.hasta = 0; actual.cv.classList.add("visible"); }
+      return;
+    }
     const nueva = capas[1 - activa];
     prepara(nueva, nombre);
     nueva.t0 = performance.now();
+    nueva.oculta = false;
     nueva.cv.classList.add("visible");
     actual.cv.classList.remove("visible");
     actual.hasta = performance.now() + 2600;
@@ -74,15 +111,31 @@
   }
 
   // Diapositiva de imagen: capa negra con la foto encima de todo
+  const vid = $("video");
   async function ponImagen(v) {
     diapo.classList.toggle("cubrir", v.ajuste === "cubrir");
     const u = await VP.imagenes.url(v.imagen);
     const ahora = actual();
     if (!ahora || ahora.id !== v.id) return;
     if (!u) { diapo.classList.remove("visible"); return; }
-    if (img.getAttribute("src") !== u) {
-      img.src = u;
-      try { await img.decode(); } catch (e) {}
+    diapo.classList.toggle("es-video", !!v.video);
+    if (v.video) {
+      // Diapositiva de video: empieza desde el inicio; en automático dura lo que dura el video
+      if (vid.getAttribute("src") !== u) vid.src = u;
+      vid.loop = modo !== "auto";
+      vid.muted = !v.sonido;
+      try { vid.currentTime = 0; } catch (e) {}
+      try { await vid.play(); } catch (e) { vid.muted = true; vid.play().catch(() => {}); }
+      if (modo === "auto") {
+        const pon = () => { const a = actual(); if (a && a.id === v.id && isFinite(vid.duration) && vid.duration > 0) total = restante = Math.min(600, vid.duration + 0.4); };
+        if (vid.readyState >= 1) pon(); else vid.addEventListener("loadedmetadata", pon, { once: true });
+      }
+    } else {
+      vid.pause();
+      if (img.getAttribute("src") !== u) {
+        img.src = u;
+        try { await img.decode(); } catch (e) {}
+      }
     }
     diapo.classList.add("visible");
   }
@@ -95,6 +148,7 @@
       return;
     }
     diapo.classList.remove("visible");
+    vid.pause();
     let i = 0;
     verso.innerHTML = "";
     for (const linea of v.texto.split("\n")) {
@@ -162,6 +216,7 @@
       cambiando = true;
       escena.classList.add("saliendo");
       diapo.classList.remove("visible");
+      vid.pause();
       setTimeout(entra, reducido ? 600 : 950);
     } else entra();
   }
@@ -179,6 +234,7 @@
     pos = orden.indexOf(i);
     const v = VERSOS[i];
     if (!cambiando && (v.texto !== antes.texto || v.ref !== antes.ref || v.tipo !== antes.tipo || v.imagen !== antes.imagen || v.ajuste !== antes.ajuste)) pinta(v, true);
+    else if (v.video && v.sonido !== antes.sonido) vid.muted = !v.sonido;
     cambiaFondo(v.fondo);
     cuenta(); avisa();
   }
@@ -211,7 +267,7 @@
     for (let i = 0; i < 2; i++) {
       const capa = capas[i];
       if (!capa.dibujar) continue;
-      if (i === activa || ahora < capa.hasta) capa.dibujar(capa.c, (ahora - capa.t0) / 1000);
+      if ((i === activa && !capa.oculta) || ahora < capa.hasta) capa.dibujar(capa.c, (ahora - capa.t0) / 1000);
     }
     if (tocando && !cambiando && VERSOS.length && !escena.hidden) {
       restante -= dt;

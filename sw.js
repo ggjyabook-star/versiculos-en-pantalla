@@ -1,6 +1,6 @@
 // Guarda la presentación y el panel para que sigan funcionando sin internet (útil en el templo).
 // Tus versículos, canciones e imágenes ya viven en el navegador; esto guarda la página y sus archivos.
-const VERSION = "vp-10";
+const VERSION = "vp-11";
 const ARCHIVOS = ["./", "index.html", "panel.html", "versiculos.js", "fondos.js", "comun.js", "app.js", "panel.js"];
 // Librerías para leer Word, PowerPoint y PDF (se guardan si se pueden descargar)
 const EXTRAS = [

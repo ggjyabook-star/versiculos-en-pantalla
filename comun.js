@@ -2,6 +2,24 @@
 // Cada diapositiva es un versículo (tipo "verso") o una imagen (tipo "imagen", guardada en IndexedDB).
 (function () {
   const CLAVE = "vp-lista";
+  const CLAVE_FONDOS = "vp-fondos";
+
+  // Fondos propios (imagen o video subidos): su id empieza con "f-" y el archivo vive en IndexedDB
+  const esPropio = (f) => typeof f === "string" && f.startsWith("f-");
+  function fondosPropios() {
+    try {
+      const l = JSON.parse(localStorage.getItem(CLAVE_FONDOS));
+      if (Array.isArray(l)) {
+        return l.filter((f) => f && f.id && f.blob).map((f) => ({
+          id: String(f.id), nombre: String(f.nombre || "Fondo"), tipo: f.tipo === "video" ? "video" : "imagen", blob: String(f.blob), mini: String(f.mini || ""),
+        }));
+      }
+    } catch (e) {}
+    return [];
+  }
+  function guardaFondos(l) {
+    try { localStorage.setItem(CLAVE_FONDOS, JSON.stringify(l)); return true; } catch (e) { return false; }
+  }
 
   function porDefecto() {
     return (window.VERSICULOS || []).map((v, i) => ({ id: "v" + i, tipo: "verso", ref: v.ref, texto: v.texto, fondo: v.fondo, activo: true, imagen: "", ajuste: "contener" }));
@@ -16,7 +34,9 @@
         ...(Array.isArray(v.paginasData) ? { paginasData: v.paginasData } : {}),
         ref: String(v.ref || ""),
         texto: String(v.texto || ""),
-        fondo: window.FONDOS && window.FONDOS[v.fondo] ? v.fondo : "estrellas",
+        fondo: (window.FONDOS && window.FONDOS[v.fondo]) || esPropio(v.fondo) ? v.fondo : "estrellas",
+        video: !!v.video,
+        sonido: !!v.sonido,
         activo: v.activo !== false,
         imagen: v.imagen ? String(v.imagen) : "",
         ajuste: v.ajuste === "cubrir" ? "cubrir" : "contener",
@@ -111,6 +131,7 @@
       try {
         const usadas = new Set();
         for (const v of l) { if (v.imagen) usadas.add(v.imagen); for (const p of v.paginas || []) usadas.add(p); }
+        for (const f of fondosPropios()) usadas.add(f.blob);
         for (const k of await imagenes.claves()) if (!usadas.has(k)) await imagenes.borra(k);
       } catch (e) {}
     },
@@ -119,5 +140,5 @@
   let canal = null;
   try { canal = new BroadcastChannel("vp"); } catch (e) {}
 
-  window.VP = { CLAVE, porDefecto, limpia, lista, guardaLista, leer, guardar, canal, tieneContenido, estrofas, ordenados, diapositivas, imagenes };
+  window.VP = { CLAVE, CLAVE_FONDOS, esPropio, fondosPropios, guardaFondos, porDefecto, limpia, lista, guardaLista, leer, guardar, canal, tieneContenido, estrofas, ordenados, diapositivas, imagenes };
 })();

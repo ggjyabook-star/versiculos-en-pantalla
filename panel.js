@@ -138,12 +138,12 @@
       const n = VP.estrofas(v.texto).length;
       chip.classList.remove("foto");
       li.querySelector(".frag").textContent = n ? `Canción · ${n} estrofa${n > 1 ? "s" : ""}` : "Falta la letra";
-      chip.style.background = (INFO[v.fondo] || INFO.estrellas).color;
-      chip.title = "Fondo: " + (INFO[v.fondo] || INFO.estrellas).nombre;
+      chip.style.background = fondoInfo(v.fondo).color;
+      chip.title = "Fondo: " + fondoInfo(v.fondo).nombre;
       return;
     }
     if (v.tipo === "imagen") {
-      li.querySelector(".frag").textContent = "Imagen · " + (v.ajuste === "cubrir" ? "llena la pantalla" : "completa");
+      li.querySelector(".frag").textContent = (v.video ? "Video · " : "Imagen · ") + (v.ajuste === "cubrir" ? "llena la pantalla" : "completa");
       chip.classList.add("foto");
       chip.title = "Imagen";
       chip.style.background = "#000";
@@ -152,8 +152,8 @@
     }
     chip.classList.remove("foto");
     li.querySelector(".frag").textContent = v.texto.replace(/\n/g, " ").trim() || "Falta el texto";
-    chip.style.background = (INFO[v.fondo] || INFO.estrellas).color;
-    chip.title = "Fondo: " + (INFO[v.fondo] || INFO.estrellas).nombre;
+    chip.style.background = fondoInfo(v.fondo).color;
+    chip.title = "Fondo: " + fondoInfo(v.fondo).nombre;
   }
   function itemLista(v) {
     const li = document.createElement("li");
@@ -242,7 +242,7 @@
     $("fondoTodos").hidden = esImg;
     $("proyectar").lastChild.textContent = esCan ? " Proyectar esta estrofa" : " Proyectar este ahora";
     if (forzar) { avisa(""); }
-    for (const b of elFondos.children) b.setAttribute("aria-checked", String(b.dataset.fondo === v.fondo));
+    marcaFondos(v.fondo);
     if (esCan) {
       if (forzar || document.activeElement !== $("tituloCancion")) $("tituloCancion").value = v.ref;
       if (forzar || document.activeElement !== $("letra")) $("letra").value = v.texto;
@@ -258,6 +258,8 @@
       if (forzar || document.activeElement !== $("nombreImg")) $("nombreImg").value = v.ref;
       $("ajContener").setAttribute("aria-pressed", String(v.ajuste !== "cubrir"));
       $("ajCubrir").setAttribute("aria-pressed", String(v.ajuste === "cubrir"));
+      $("filaSonido").hidden = !v.video;
+      $("conSonido").checked = !!v.sonido;
     } else {
       if (forzar || document.activeElement !== inCita) inCita.value = v.ref;
       if (forzar || document.activeElement !== inTexto) inTexto.value = v.texto;
@@ -544,6 +546,88 @@
     miniaturas.push({ c: cv.getContext("2d"), dibujar: FONDOS[f].crear(cv.width, cv.height) });
   }
 
+  // ---------- Fondos propios: imagen o video que suben ----------
+  let propios = VP.fondosPropios();
+  const elPropios = $("fondosPropios");
+  // Nombre y muestra de color de cualquier fondo (de los nuestros o de los subidos)
+  function fondoInfo(id) {
+    if (VP.esPropio(id)) {
+      const f = propios.find((x) => x.id === id);
+      if (f) return { nombre: f.nombre + (f.tipo === "video" ? " (video)" : ""), color: f.mini ? `#000 url("${f.mini}") center / cover` : "#222" };
+    }
+    return INFO[id] || INFO.estrellas;
+  }
+  function marcaFondos(id) {
+    for (const b of [...elFondos.children, ...elPropios.children]) if (b.dataset.fondo) b.setAttribute("aria-checked", String(b.dataset.fondo === id));
+    $("filaBorrarFondo").hidden = !VP.esPropio(id) || !propios.some((f) => f.id === id);
+  }
+  function pintaPropios() {
+    elPropios.innerHTML = "";
+    for (const f of propios) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "fondo-op"; b.dataset.fondo = f.id;
+      b.setAttribute("role", "radio");
+      const im = document.createElement("img"); im.className = "mini"; im.alt = ""; if (f.mini) im.src = f.mini;
+      const s = document.createElement("span"); s.textContent = f.nombre;
+      b.append(im, s);
+      if (f.tipo === "video") { const t = document.createElement("span"); t.className = "tipo"; t.textContent = "VIDEO"; b.appendChild(t); }
+      b.addEventListener("click", () => {
+        const v = elegido(); if (!v) return;
+        v.fondo = f.id; guarda(true); pintaEditor(); actualizaItem(v);
+      });
+      elPropios.appendChild(b);
+    }
+    const subir = document.createElement("button");
+    subir.type = "button"; subir.className = "fondo-op subir";
+    subir.innerHTML = '<svg class="ico" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><span>Subir fondo<br>imagen o video</span>';
+    subir.addEventListener("click", () => $("archivoFondo").click());
+    elPropios.appendChild(subir);
+    const v = elegido(); if (v) marcaFondos(v.fondo);
+  }
+  // Foto pequeña del fondo para la lista y la cuadrícula (de un video toma un cuadro del primer segundo)
+  async function miniatura(blob, esVideo) {
+    const u = URL.createObjectURL(blob);
+    try {
+      let fuente;
+      if (esVideo) {
+        fuente = document.createElement("video");
+        fuente.muted = true; fuente.playsInline = true; fuente.preload = "auto"; fuente.src = u;
+        await new Promise((res, rej) => { fuente.onloadeddata = res; fuente.onerror = rej; setTimeout(rej, 15000); });
+        await new Promise((res) => { fuente.onseeked = res; fuente.currentTime = Math.min(1, (fuente.duration || 2) / 2); setTimeout(res, 3000); });
+      } else {
+        fuente = new Image(); fuente.src = u; await fuente.decode();
+      }
+      const w = esVideo ? fuente.videoWidth : fuente.naturalWidth, h = esVideo ? fuente.videoHeight : fuente.naturalHeight;
+      const cv = document.createElement("canvas"); cv.width = 224; cv.height = 126;
+      const k = Math.max(cv.width / w, cv.height / h);
+      cv.getContext("2d").drawImage(fuente, (cv.width - w * k) / 2, (cv.height - h * k) / 2, w * k, h * k);
+      return cv.toDataURL("image/jpeg", 0.7);
+    } catch (e) { return ""; } finally { URL.revokeObjectURL(u); }
+  }
+  $("archivoFondo").addEventListener("change", async () => {
+    const f = $("archivoFondo").files[0];
+    $("archivoFondo").value = "";
+    if (!f) return;
+    const esVideo = f.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(f.name);
+    if (!esVideo && !f.type.startsWith("image/")) return avisa("Ese archivo no es imagen ni video.", "error");
+    if (esVideo && f.size > 300e6) return avisa("Ese video pesa más de 300 MB. Usa uno más ligero (un fondo de 20 a 60 segundos es suficiente).", "error");
+    avisa(esVideo ? "Guardando el video…" : "Guardando la imagen…");
+    const blob = esVideo ? f : await preparaImagen(f);
+    if (!blob) return avisa("Ese formato no se puede abrir. Usa JPG, PNG, MP4 o WebM.", "error");
+    const mini = await miniatura(blob, esVideo);
+    if (esVideo && !mini) return avisa("Ese video no se puede reproducir en este navegador. Usa MP4 (H.264) o WebM.", "error");
+    try {
+      const idBlob = await VP.imagenes.guarda(blob);
+      const nuevo = { id: "f-" + nuevoId(), nombre: sinExtension(f.name).slice(0, 40) || "Mi fondo", tipo: esVideo ? "video" : "imagen", blob: idBlob, mini };
+      propios.push(nuevo);
+      if (!VP.guardaFondos(propios)) { propios.pop(); return avisa("No hay espacio para guardar ese fondo.", "error"); }
+      const v = elegido();
+      if (v && v.tipo !== "imagen") { v.fondo = nuevo.id; guarda(true); actualizaItem(v); }
+      pintaPropios(); pintaEditor();
+      avisa("Fondo agregado. Ya lo puedes usar en cualquier versículo o canción.", "ok");
+    } catch (e) { avisa("No se pudo guardar ese fondo en este navegador.", "error"); }
+  });
+
   // ---------- Vista previa ----------
   const previa = $("previa"), lienzo = $("lienzoPrevia"), ctxP = lienzo.getContext("2d"), pVerso = $("pVerso"), pCita = $("pCita");
   let escenaP = { nombre: null, dibujar: null, t0: performance.now() };
@@ -565,11 +649,32 @@
       ref = v.verTitulo === false ? "" : v.ref;
     }
     previa.classList.toggle("es-imagen", !!imagen);
+    const esVideo = !!imagen && v.tipo === "imagen" && !!v.video;
+    previa.classList.toggle("es-video", esVideo);
+    const pVideo = $("pVideo");
+    if (!esVideo) pVideo.pause();
     if (imagen) {
       pImagen.classList.toggle("cubrir", v.ajuste === "cubrir");
-      VP.imagenes.url(imagen).then((u) => { if (elegido() === v) pImagen.src = u || ""; });
+      pVideo.classList.toggle("cubrir", v.ajuste === "cubrir");
+      VP.imagenes.url(imagen).then((u) => {
+        if (elegido() !== v) return;
+        if (esVideo) { if (pVideo.getAttribute("src") !== u) pVideo.src = u || ""; pVideo.play().catch(() => {}); }
+        else pImagen.src = u || "";
+      });
       return;
     }
+    // Fondo propio (imagen o video) o uno de los animados
+    const propio = VP.esPropio(v.fondo) ? propios.find((x) => x.id === v.fondo) : null;
+    previa.classList.toggle("con-propio", !!propio);
+    previa.classList.toggle("con-video", !!propio && propio.tipo === "video");
+    const pFV = $("pFondoVid");
+    if (propio) {
+      VP.imagenes.url(propio.blob).then((u) => {
+        if (elegido() !== v || !u) return;
+        if (propio.tipo === "video") { if (pFV.getAttribute("src") !== u) pFV.src = u; pFV.play().catch(() => {}); }
+        else { pFV.pause(); $("pFondoImg").src = u; }
+      });
+    } else pFV.pause();
     const f = FONDOS[v.fondo] ? v.fondo : "estrellas";
     if (escenaP.nombre !== f) preparaPrevia(f);
     pVerso.innerHTML = "";
@@ -596,7 +701,7 @@
 
   let cuadroN = 0;
   function cuadro(ahora) {
-    if (escenaP.dibujar && !$("editor").hidden && !previa.classList.contains("es-imagen")) escenaP.dibujar(ctxP, (ahora - escenaP.t0) / 1000);
+    if (escenaP.dibujar && !$("editor").hidden && !previa.classList.contains("es-imagen") && !previa.classList.contains("con-propio")) escenaP.dibujar(ctxP, (ahora - escenaP.t0) / 1000);
     // las miniaturas a medio ritmo para no cansar la computadora
     if (cuadroN++ % 2 === 0) for (const m of miniaturas) m.dibujar(m.c, ahora / 1000);
     requestAnimationFrame(cuadro);
@@ -725,24 +830,38 @@
   }
   const sinExtension = (n) => n.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
   async function agregaImagenes(archivos) {
-    const fotos = [...archivos].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name));
-    if (!fotos.length) return avisa("Ese archivo no es una imagen. Usa JPG, PNG, WebP o GIF.", "error");
-    avisa(fotos.length > 1 ? `Cargando ${fotos.length} imágenes…` : "Cargando la imagen…");
+    const esVid = (f) => f.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(f.name);
+    const fotos = [...archivos].filter((f) => esVid(f) || f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name));
+    if (!fotos.length) return avisa("Ese archivo no es imagen ni video. Usa JPG, PNG, WebP, GIF, MP4 o WebM.", "error");
+    avisa(fotos.length > 1 ? `Cargando ${fotos.length} archivos…` : "Cargando…");
     let pos = elegido() ? lista.indexOf(elegido()) + 1 : lista.length, ultimo = null, fallidas = 0;
     for (const f of fotos) {
-      const blob = await preparaImagen(f);
+      const video = esVid(f);
+      if (video && f.size > 500e6) { fallidas++; continue; }
+      const blob = video ? f : await preparaImagen(f);
       if (!blob) { fallidas++; continue; }
       try {
         const imagen = await VP.imagenes.guarda(blob);
-        const it = { id: nuevoId(), tipo: "imagen", ref: sinExtension(f.name), texto: "", fondo: "estrellas", activo: true, imagen, ajuste: "contener" };
+        const it = { id: nuevoId(), tipo: "imagen", ref: sinExtension(f.name), texto: "", fondo: "estrellas", activo: true, imagen, ajuste: "contener", video, sonido: video };
         lista.splice(pos++, 0, it);
         ultimo = it;
       } catch (e) { fallidas++; }
     }
     if (ultimo) { guarda(true); selecciona(ultimo.id); }
-    if (fallidas) avisa(`${fallidas === fotos.length ? "No se pudo" : `No se pudieron ${fallidas} de ${fotos.length}`}: ese formato no se puede abrir (las fotos HEIC de iPhone, por ejemplo). Pídela en JPG o PNG.`, "error");
-    else avisa(fotos.length > 1 ? `Se agregaron ${fotos.length} imágenes.` : "Imagen agregada. Ya puedes proyectarla.", "ok");
+    if (fallidas) avisa(`${fallidas === fotos.length ? "No se pudo" : `No se pudieron ${fallidas} de ${fotos.length}`}: ese formato no se puede abrir (las fotos HEIC de iPhone, por ejemplo) o el video pesa más de 500 MB. Usa JPG, PNG o MP4.`, "error");
+    else avisa(fotos.length > 1 ? `Se agregaron ${fotos.length} diapositivas.` : ultimo && ultimo.video ? "Video agregado. Ya puedes proyectarlo." : "Imagen agregada. Ya puedes proyectarla.", "ok");
   }
+  $("conSonido").addEventListener("change", () => { const v = elegido(); if (!v) return; v.sonido = $("conSonido").checked; guarda(true); });
+  dobleToque($("borrarFondo"), "¿Borrar este fondo? Toca otra vez", () => {
+    const v = elegido(); if (!v || !VP.esPropio(v.fondo)) return;
+    const id = v.fondo;
+    propios = propios.filter((f) => f.id !== id);
+    VP.guardaFondos(propios);
+    for (const x of lista) if (x.fondo === id) x.fondo = "estrellas";
+    guarda(true); pintaPropios(); pintaLista(); pintaEditor();
+    VP.imagenes.limpia(lista);
+    avisa("Fondo borrado. Los que lo usaban quedaron con Estrellitas.", "ok");
+  });
   $("agregarImg").addEventListener("click", () => $("archivoImg").click());
   $("archivoImg").addEventListener("change", async () => { await agregaImagenes($("archivoImg").files); $("archivoImg").value = ""; });
   $("cambiarImg").addEventListener("click", () => $("archivoCambio").click());
@@ -802,7 +921,7 @@
     const v = elegido(); if (!v) return;
     for (const x of lista) x.fondo = v.fondo;
     guarda(true); pintaLista();
-    avisa(`Todos los versículos tienen ahora el fondo ${INFO[v.fondo].nombre}.`, "ok");
+    avisa(`Todos los versículos tienen ahora el fondo ${fondoInfo(v.fondo).nombre}.`, "ok");
   });
   dobleToque($("restaurar"), "¿Borrar tus cambios y volver a los originales? Toca otra vez", () => {
     lista = VP.porDefecto();
@@ -816,8 +935,8 @@
   $("exportar").addEventListener("click", async () => {
     // Las imágenes van dentro del archivo para que la copia sirva en otra computadora
     const copia = [];
+    const lee = async (id) => { const b = await VP.imagenes.lee(id).catch(() => null); return b ? aTexto(b) : null; };
     for (const v of lista) {
-      const lee = async (id) => { const b = await VP.imagenes.lee(id).catch(() => null); return b ? aTexto(b) : null; };
       if (v.tipo === "imagen") copia.push({ ...v, imagenData: (await lee(v.imagen)) || undefined });
       else if (v.paginas && v.paginas.length) {
         const datos = [];
@@ -825,7 +944,11 @@
         copia.push({ ...v, paginasData: datos });
       } else copia.push(v);
     }
-    const blob = new Blob([JSON.stringify({ versiculos: copia }, null, 2)], { type: "application/json" });
+    // también los fondos propios que se usan
+    const usados = new Set(lista.map((v) => v.fondo));
+    const fondos = [];
+    for (const f of propios) if (usados.has(f.id)) fondos.push({ ...f, data: await lee(f.blob) });
+    const blob = new Blob([JSON.stringify({ versiculos: copia, fondos }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "versiculos-en-pantalla.json";
@@ -853,6 +976,18 @@
         }
         delete v.imagenData;
         delete v.paginasData;
+      }
+      // fondos propios que venían en la copia (se conservan los que ya existen)
+      if (Array.isArray(d.fondos)) {
+        for (const fo of d.fondos) {
+          if (!fo || !fo.id || !fo.data || propios.some((x) => x.id === fo.id)) continue;
+          try {
+            const idBlob = await VP.imagenes.guarda(await (await fetch(fo.data)).blob());
+            propios.push({ id: String(fo.id), nombre: String(fo.nombre || "Fondo"), tipo: fo.tipo === "video" ? "video" : "imagen", blob: idBlob, mini: String(fo.mini || "") });
+          } catch (e) {}
+        }
+        VP.guardaFondos(propios);
+        pintaPropios();
       }
       lista = l; sel = lista[0].id;
       guarda(true); pintaLista(); pintaEditor(true);
@@ -995,6 +1130,7 @@
 
   // ---------- Inicio ----------
   midaBarra();
+  pintaPropios();
   if (elegido()) { if (esCancion(elegido())) selCancion = sel; else selVerso = sel; }
   ponPestana(pestana);
   pintaLista();
