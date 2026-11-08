@@ -140,6 +140,10 @@
     diapo.classList.add("visible");
   }
   function pinta(v, quieto) {
+    // La versión de la Biblia (arriba a la derecha) solo en versículos que la tengan; nunca en canciones ni imágenes
+    const ver = v.tipo === "verso" && !v.cancion ? (v.version || "").trim() : "";
+    if (ver) $("version").textContent = ver;
+    $("version").classList.toggle("oculta", !ver);
     if (v.tipo === "imagen") {
       verso.innerHTML = "";
       cita.textContent = "";
@@ -233,7 +237,7 @@
     if (i < 0) return muestra(antes ? Math.min(pos, orden.length - 1) : 0, !!antes, true);
     pos = orden.indexOf(i);
     const v = VERSOS[i];
-    if (!cambiando && (v.texto !== antes.texto || v.ref !== antes.ref || v.tipo !== antes.tipo || v.imagen !== antes.imagen || v.ajuste !== antes.ajuste)) pinta(v, true);
+    if (!cambiando && (v.texto !== antes.texto || v.ref !== antes.ref || v.version !== antes.version || v.tipo !== antes.tipo || v.imagen !== antes.imagen || v.ajuste !== antes.ajuste)) pinta(v, true);
     else if (v.video && v.sonido !== antes.sonido) vid.muted = !v.sonido;
     cambiaFondo(v.fondo);
     cuenta(); avisa();

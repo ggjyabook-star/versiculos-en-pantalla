@@ -22,7 +22,7 @@
   }
 
   function porDefecto() {
-    return (window.VERSICULOS || []).map((v, i) => ({ id: "v" + i, tipo: "verso", ref: v.ref, texto: v.texto, fondo: v.fondo, activo: true, imagen: "", ajuste: "contener" }));
+    return (window.VERSICULOS || []).map((v, i) => ({ id: "v" + i, tipo: "verso", ref: v.ref, texto: v.texto, fondo: v.fondo, activo: true, imagen: "", ajuste: "contener", version: "Reina-Valera 1909" }));
   }
   function limpia(l) {
     return l
@@ -35,6 +35,8 @@
         ref: String(v.ref || ""),
         texto: String(v.texto || ""),
         fondo: (window.FONDOS && window.FONDOS[v.fondo]) || esPropio(v.fondo) ? v.fondo : "estrellas",
+        // versión de la Biblia que sale arriba a la derecha (los versículos viejos sin dato son de la 1909)
+        version: typeof v.version === "string" ? v.version : (v.tipo === "imagen" || v.tipo === "cancion" ? "" : "Reina-Valera 1909"),
         video: !!v.video,
         sonido: !!v.sonido,
         activo: v.activo !== false,

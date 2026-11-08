@@ -124,7 +124,9 @@ body.quieto, body.quieto * { cursor: none; }
   top: max(14px, env(safe-area-inset-top, 0px));
   font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
   color: rgba(251,246,238,.45);
+  transition: opacity .9s ease;
 }
+.version.oculta { opacity: 0; }
 
 .progreso {
   position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
@@ -211,7 +213,7 @@ body.quieto .controles { opacity: 0; transform: translate(-50%, 12px); pointer-e
 <div class="diapo" id="diapo" aria-hidden="true"><img id="imagen" alt=""><video id="video" playsinline></video></div>
 <div class="negro" id="negro" aria-hidden="true"></div>
 
-<div class="version">Reina-Valera 1909</div>
+<div class="version oculta" id="version"></div>
 <div class="ayuda" id="ayuda"><kbd>F</kbd> pantalla completa · <kbd>Espacio</kbd> pausa · <kbd>←</kbd><kbd>→</kbd> cambiar · <kbd>B</kbd> negro</div>
 
 <nav class="controles" id="controles" aria-label="Controles de la presentación">

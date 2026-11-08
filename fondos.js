@@ -318,6 +318,168 @@
         }
       };
     } },
+
+    // ---------- Navidad ----------
+    // Nieve cayendo sobre un bosque de pinos de noche
+    nieve: { escala: 0.5, crear(w, h) {
+      const k = Math.max(w, h) / 960;
+      const copos = Array.from({ length: 240 }, () => {
+        const z = Math.random();
+        return { x: Math.random() * w, y: Math.random() * h, r: (0.6 + z * 2.4) * k, v: (12 + z * 38) * k, d: al(0, TAU), s: al(0.3, 1.1), a: 0.35 + z * 0.6 };
+      });
+      const fila = (n, base, alto, varia) => Array.from({ length: n }, (_, i) => ({ x: (i + al(-0.3, 0.3)) * (w / (n - 1)), base: h * (base + al(-varia, varia)), alto: h * alto * al(0.75, 1.2) }));
+      const lejos = fila(26, 0.8, 0.16, 0.02), cerca = fila(12, 0.95, 0.3, 0.03);
+      const pino = (c, p, color, nieveC) => {
+        const ancho = p.alto * 0.42;
+        for (let i = 0; i < 3; i++) {
+          const top = p.base - p.alto + i * p.alto * 0.22, bot = p.base - p.alto * 0.18 + i * p.alto * 0.27 - p.alto * 0.25 * (2 - i) * 0.3;
+          const a = ancho * (0.55 + i * 0.25);
+          c.fillStyle = color;
+          c.beginPath(); c.moveTo(p.x, top); c.lineTo(p.x + a, bot); c.lineTo(p.x - a, bot); c.closePath(); c.fill();
+          c.fillStyle = nieveC;
+          c.beginPath(); c.moveTo(p.x, top); c.lineTo(p.x + a * 0.35, top + (bot - top) * 0.35); c.lineTo(p.x - a * 0.35, top + (bot - top) * 0.35); c.closePath(); c.fill();
+        }
+      };
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = lineal(c, 0, 0, 0, h, [[0, "#081022"], [0.55, "#16284f"], [1, "#3c5d8f"]]);
+        c.fillRect(0, 0, w, h);
+        c.globalCompositeOperation = "lighter";
+        brillo(c, w * 0.18, h * 0.16, h * 0.35, [200, 220, 255], 0.16);
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = "#f4f7ff"; c.beginPath(); c.arc(w * 0.18, h * 0.16, h * 0.04, 0, TAU); c.fill();
+        for (const p of lejos) pino(c, p, "#1a3158", "rgba(220,232,250,.55)");
+        cerro(c, w, h, 0.9, 0.06, 4, 1.1, "#c9d8ec", 0);
+        for (const p of cerca) pino(c, p, "#0d1c38", "rgba(235,242,255,.8)");
+        cerro(c, w, h, 1.02, 0.07, 5, 3.3, "#e6eef8", 0);
+        c.fillStyle = "#fff";
+        for (const s of copos) {
+          const y = (s.y + t * s.v) % (h + 10) - 5, x = s.x + Math.sin(t * s.s + s.d) * 18 * k;
+          c.globalAlpha = s.a; c.beginPath(); c.arc(x, y, s.r, 0, TAU); c.fill();
+        }
+        c.globalAlpha = 1;
+      };
+    } },
+
+    // Series de luces de colores que titilan
+    lucesnav: { escala: 0.5, crear(w, h) {
+      const colores = [[255, 70, 70], [255, 196, 60], [70, 220, 120], [80, 160, 255], [255, 120, 210]];
+      const m = Math.max(w, h);
+      const cables = [[0.05, 0.1], [0.16, 0.08], [0.82, 0.07], [0.93, 0.06]].map(([y, sag], ci) => {
+        const p0 = [-0.05 * w, h * y], p2 = [1.05 * w, h * (y + al(-0.02, 0.02))], p1 = [0.5 * w, h * (y + sag)];
+        const n = 18;
+        const focos = Array.from({ length: n }, (_, i) => {
+          const u = (i + 0.5) / n, a = (1 - u) * (1 - u), b = 2 * (1 - u) * u, cc = u * u;
+          return { x: a * p0[0] + b * p1[0] + cc * p2[0], y: a * p0[1] + b * p1[1] + cc * p2[1] + m * 0.012, col: colores[(i + ci * 2) % colores.length], v: al(0.8, 2.2), p: al(0, TAU) };
+        });
+        return { p0, p1, p2, focos };
+      });
+      const bokeh = Array.from({ length: 24 }, () => ({ x: Math.random() * w, y: Math.random() * h, r: al(0.03, 0.08) * m, col: colores[Math.floor(Math.random() * colores.length)], p: al(0, TAU) }));
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = lineal(c, 0, 0, w, h, [[0, "#06140e"], [0.55, "#0e2219"], [1, "#2a0c12"]]);
+        c.fillRect(0, 0, w, h);
+        c.globalCompositeOperation = "lighter";
+        for (const b of bokeh) brillo(c, b.x + Math.sin(t * 0.2 + b.p) * 20, b.y, b.r, b.col, 0.07 + 0.04 * Math.sin(t * 0.5 + b.p));
+        c.globalCompositeOperation = "source-over";
+        c.strokeStyle = "#16241b"; c.lineWidth = Math.max(1.5, m * 0.003);
+        for (const k of cables) { c.beginPath(); c.moveTo(k.p0[0], k.p0[1]); c.quadraticCurveTo(k.p1[0], k.p1[1], k.p2[0], k.p2[1]); c.stroke(); }
+        c.globalCompositeOperation = "lighter";
+        for (const k of cables) for (const f of k.focos) {
+          const on = 0.55 + 0.45 * Math.sin(t * f.v + f.p);
+          brillo(c, f.x, f.y, m * 0.05, f.col, 0.35 * on);
+          c.fillStyle = rgba(f.col.map((x) => Math.min(255, x + 90)), 0.6 + 0.4 * on);
+          c.beginPath(); c.ellipse(f.x, f.y, m * 0.006, m * 0.009, 0, 0, TAU); c.fill();
+        }
+        c.globalCompositeOperation = "source-over";
+      };
+    } },
+
+    // Estrella de Belén sobre el desierto y el pesebre
+    belen: { escala: 0.5, crear(w, h) {
+      const est = estrellas(Math.round((w * h) / 1100), w, h * 0.75);
+      const sx = w * 0.7, sy = h * 0.2, m = Math.max(w, h);
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = lineal(c, 0, 0, 0, h, [[0, "#050818"], [0.6, "#14183a"], [0.85, "#3a2846"], [1, "#4b3040"]]);
+        c.fillRect(0, 0, w, h);
+        pintaEstrellas(c, est, t, 0.8);
+        c.globalCompositeOperation = "lighter";
+        const pulso = 0.85 + 0.15 * Math.sin(t * 1.3);
+        brillo(c, sx, sy, h * 0.55, [255, 225, 170], 0.22 * pulso);
+        brillo(c, sx, sy, h * 0.12, [255, 245, 220], 0.6);
+        // destellos de la estrella: cruz larga y diagonales cortas
+        const rayo = (ang, largo, ancho, a) => {
+          const g = c.createLinearGradient(sx, sy, sx + Math.cos(ang) * largo, sy + Math.sin(ang) * largo);
+          g.addColorStop(0, `rgba(255,248,225,${a})`); g.addColorStop(1, "rgba(255,240,200,0)");
+          c.fillStyle = g; c.beginPath();
+          c.moveTo(sx + Math.cos(ang + Math.PI / 2) * ancho, sy + Math.sin(ang + Math.PI / 2) * ancho);
+          c.lineTo(sx + Math.cos(ang) * largo, sy + Math.sin(ang) * largo);
+          c.lineTo(sx + Math.cos(ang - Math.PI / 2) * ancho, sy + Math.sin(ang - Math.PI / 2) * ancho);
+          c.closePath(); c.fill();
+        };
+        for (let i = 0; i < 4; i++) rayo(i * Math.PI / 2, m * (i === 1 ? 0.42 : 0.2) * pulso, m * 0.006, 0.9);
+        for (let i = 0; i < 4; i++) rayo(Math.PI / 4 + i * Math.PI / 2, m * 0.08 * pulso, m * 0.004, 0.7);
+        // haz suave hacia el pesebre
+        const g = c.createLinearGradient(sx, sy, sx, h * 0.86);
+        g.addColorStop(0, "rgba(255,235,190,.12)"); g.addColorStop(1, "rgba(255,235,190,0)");
+        c.fillStyle = g; c.beginPath(); c.moveTo(sx - m * 0.01, sy); c.lineTo(sx + m * 0.07, h * 0.86); c.lineTo(sx - m * 0.09, h * 0.86); c.closePath(); c.fill();
+        c.fillStyle = "#fff"; c.beginPath(); c.arc(sx, sy, m * 0.006, 0, TAU); c.fill();
+        c.globalCompositeOperation = "source-over";
+        cerro(c, w, h, 0.93, 0.08, 3, 0.6, "#1a1426", 0);
+        // pesebre
+        const bx = sx - m * 0.05, by = h * 0.88, bw = m * 0.1, bh = m * 0.05;
+        c.fillStyle = "#0c0a14";
+        c.fillRect(bx, by - bh, bw, bh);
+        c.beginPath(); c.moveTo(bx - bw * 0.12, by - bh); c.lineTo(bx + bw / 2, by - bh * 1.75); c.lineTo(bx + bw * 1.12, by - bh); c.closePath(); c.fill();
+        c.globalCompositeOperation = "lighter";
+        brillo(c, bx + bw / 2, by - bh * 0.35, bw * 0.5, [255, 190, 110], 0.35 + 0.08 * Math.sin(t * 2.3));
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = "#e0a25a"; c.fillRect(bx + bw * 0.38, by - bh * 0.62, bw * 0.24, bh * 0.62);
+        // palmeras
+        const palma = (x, base, alto) => {
+          c.strokeStyle = "#0c0a14"; c.lineWidth = alto * 0.035; c.lineCap = "round";
+          c.beginPath(); c.moveTo(x, base); c.quadraticCurveTo(x + alto * 0.12, base - alto * 0.5, x + alto * 0.05, base - alto); c.stroke();
+          const tx = x + alto * 0.05, ty = base - alto;
+          c.lineWidth = alto * 0.03;
+          for (let i = 0; i < 7; i++) {
+            const a = -Math.PI + (i / 6) * Math.PI + Math.sin(t * 0.6 + i) * 0.03;
+            c.beginPath(); c.moveTo(tx, ty);
+            c.quadraticCurveTo(tx + Math.cos(a) * alto * 0.3, ty + Math.sin(a) * alto * 0.2 - alto * 0.08, tx + Math.cos(a) * alto * 0.42, ty + Math.sin(a) * alto * 0.12 + alto * 0.12);
+            c.stroke();
+          }
+        };
+        palma(w * 0.12, h * 0.97, h * 0.3);
+        palma(w * 0.88, h * 0.96, h * 0.24);
+        cerro(c, w, h, 1.02, 0.05, 5, 2.2, "#0e0b17", 0);
+      };
+    } },
+
+    // Destellos dorados y rojos que caen
+    destellos: { escala: 0.5, crear(w, h) {
+      const m = Math.max(w, h);
+      const tonos = [[255, 205, 110], [255, 170, 80], [230, 60, 70], [255, 235, 180], [90, 190, 120]];
+      const chispas = Array.from({ length: 160 }, () => ({ x: Math.random() * w, y: Math.random() * h, r: al(0.0015, 0.005) * m, v: al(8, 26) * (m / 960), s: al(0.4, 1.2), p: al(0, TAU), col: tonos[Math.floor(Math.random() * 4)] }));
+      const bokeh = Array.from({ length: 30 }, () => ({ x: Math.random() * w, y: Math.random() * h, r: al(0.03, 0.09) * m, col: tonos[Math.floor(Math.random() * tonos.length)], p: al(0, TAU), vy: al(-6, -2) }));
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 1.6);
+        g.addColorStop(0, "#4a1018"); g.addColorStop(0.6, "#22070c"); g.addColorStop(1, "#0d0305");
+        c.fillStyle = g; c.fillRect(0, 0, w, h);
+        c.globalCompositeOperation = "lighter";
+        for (const b of bokeh) {
+          let y = (b.y + b.vy * t) % (h + 2 * b.r); if (y < -b.r) y += h + 2 * b.r;
+          brillo(c, b.x, y, b.r, b.col, 0.1 + 0.05 * Math.sin(t * 0.7 + b.p));
+        }
+        for (const s of chispas) {
+          const y = (s.y + t * s.v) % (h + 10) - 5, x = s.x + Math.sin(t * s.s + s.p) * 14;
+          const on = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 * s.s + s.p));
+          brillo(c, x, y, s.r * 4, s.col, 0.3 * on);
+          c.fillStyle = rgba(s.col, 0.9 * on); c.beginPath(); c.arc(x, y, s.r, 0, TAU); c.fill();
+        }
+        c.globalCompositeOperation = "source-over";
+      };
+    } },
   };
 
   // Nombre y muestra de color de cada fondo (para el panel)
@@ -331,6 +493,10 @@
     nebulosa: { nombre: "Nebulosa", color: "radial-gradient(circle at 35% 45%,#9646ff99,transparent 45%),radial-gradient(circle at 65% 60%,#ff46a077,transparent 45%),#03020b" },
     luciernagas: { nombre: "Luciérnagas", color: "radial-gradient(circle at 40% 62%,#d4ff7a77,transparent 22%),linear-gradient(180deg,#020611,#0c2a24)" },
     nubes: { nombre: "Nubes", color: "linear-gradient(180deg,#1d3b70,#4f78b3 50%,#f0c6a6)" },
+    nieve: { nombre: "Nieve (Navidad)", color: "linear-gradient(180deg,#081022,#16284f 55%,#e6eef8 88%)" },
+    lucesnav: { nombre: "Luces navideñas", color: "radial-gradient(circle at 25% 20%,#ff464699,transparent 18%),radial-gradient(circle at 60% 18%,#46dc7899,transparent 18%),radial-gradient(circle at 80% 22%,#ffc43c99,transparent 18%),linear-gradient(135deg,#06140e,#2a0c12)" },
+    belen: { nombre: "Estrella de Belén", color: "radial-gradient(circle at 70% 25%,#fff1c8,#ffd78a33 18%,transparent 40%),linear-gradient(180deg,#050818,#14183a 60%,#4b3040)" },
+    destellos: { nombre: "Destellos navideños", color: "radial-gradient(circle at 30% 40%,#ffcd6e88,transparent 25%),radial-gradient(circle at 70% 60%,#e63c4688,transparent 25%),radial-gradient(circle,#4a1018,#0d0305)" },
   };
 
   window.FONDOS = FONDOS;

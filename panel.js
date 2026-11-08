@@ -263,6 +263,7 @@
     } else {
       if (forzar || document.activeElement !== inCita) inCita.value = v.ref;
       if (forzar || document.activeElement !== inTexto) inTexto.value = v.texto;
+      if (forzar || document.activeElement !== $("version")) $("version").value = v.version || "";
     }
     pintaPrevia();
   }
@@ -525,6 +526,12 @@
   $("ajCubrir").addEventListener("click", () => ponAjuste("cubrir"));
   inCita.addEventListener("input", () => { const v = elegido(); if (!v) return; v.ref = inCita.value; actualizaItem(v); pintaPrevia(); guarda(); });
   inTexto.addEventListener("input", () => { const v = elegido(); if (!v) return; v.texto = inTexto.value; actualizaItem(v); pintaPrevia(); guarda(); });
+  $("version").addEventListener("input", () => {
+    const v = elegido(); if (!v) return;
+    v.version = $("version").value;
+    VP.guardar("version", v.version); // los versículos nuevos usan la última versión que escribiste
+    pintaPrevia(); guarda();
+  });
   inCita.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); traer(); } });
 
   // ---------- Fondos (miniaturas animadas) ----------
@@ -687,6 +694,7 @@
     } else pVerso.innerHTML = `<span class="linea fantasma">${esCancion(v) ? "Aquí aparecerá la letra" : "Aquí aparecerá el versículo"}</span>`;
     pCita.textContent = ref.trim();
     pCita.hidden = !ref.trim();
+    $("pVersion").textContent = v.tipo === "verso" ? (v.version || "").trim() : "";
     ajustaPrevia();
   }
   function ajustaPrevia() {
@@ -778,7 +786,8 @@
       if (elegido() !== v) return;
       v.texto = partes.join(POETICOS.has(p.libro) ? "\n" : " ");
       v.ref = `${p.libro} ${p.cap}:${p.ini}${p.fin !== p.ini ? "-" + p.fin : ""}`;
-      inCita.value = v.ref; inTexto.value = v.texto;
+      v.version = "Reina-Valera 1909";
+      inCita.value = v.ref; inTexto.value = v.texto; $("version").value = v.version;
       actualizaItem(v); pintaPrevia(); guarda(true);
       avisa("Listo. Si quieres, corrige o corta el texto abajo.", "ok");
     } catch (e) {
@@ -805,7 +814,7 @@
   // ---------- Acciones ----------
   $("agregar").addEventListener("click", () => {
     const actual = elegido();
-    const nuevo = { id: nuevoId(), tipo: "verso", ref: "", texto: "", fondo: actual && actual.tipo !== "imagen" ? actual.fondo : "estrellas", activo: true, imagen: "", ajuste: "contener" };
+    const nuevo = { id: nuevoId(), tipo: "verso", ref: "", texto: "", fondo: actual && actual.tipo !== "imagen" ? actual.fondo : "estrellas", activo: true, imagen: "", ajuste: "contener", version: VP.leer("version") ?? "Reina-Valera 1909" };
     const i = actual ? lista.indexOf(actual) + 1 : lista.length;
     lista.splice(i, 0, nuevo);
     guarda(true);

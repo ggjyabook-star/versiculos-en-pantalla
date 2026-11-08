@@ -145,6 +145,8 @@ textarea.letra { min-height: 300px; font-size: 19px; }
 .p-cita::before, .p-cita::after { content: ""; width: 4vw; max-width: 60px; height: 1px; background: linear-gradient(90deg, transparent, var(--oro)); }
 .p-cita::after { background: linear-gradient(90deg, var(--oro), transparent); }
 .previa .proyectar { position: absolute; right: 14px; bottom: 14px; }
+.previa .p-version { position: absolute; right: 14px; top: 12px; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+.previa.es-imagen .p-version { display: none; }
 .previa .etiqueta { position: absolute; left: 14px; top: 12px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.6); }
 
 .campo { display: flex; flex-direction: column; gap: 8px; }
@@ -315,6 +317,7 @@ body.soltando::after {
             <p class="p-cita" id="pCita"></p>
           </div>
           <span class="etiqueta">Vista previa</span>
+          <span class="p-version" id="pVersion"></span>
           <button type="button" class="primario proyectar" id="proyectar">
             <svg class="ico" viewBox="0 0 24 24"><path class="lleno" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
             Proyectar este ahora
@@ -359,6 +362,19 @@ body.soltando::after {
         <div class="campo">
           <label for="texto">Texto del versículo</label>
           <textarea id="texto" placeholder="Escribe o pega el versículo. Con Enter cortas la línea."></textarea>
+        </div>
+
+        <div class="campo">
+          <label for="version">Versión de la Biblia (sale chiquita arriba a la derecha; déjala vacía para no mostrarla)</label>
+          <input type="text" id="version" list="versiones" placeholder="Ejemplo: Reina-Valera 1960" autocomplete="off">
+          <datalist id="versiones">
+            <option value="Reina-Valera 1909"></option>
+            <option value="Reina-Valera 1960"></option>
+            <option value="Nueva Versión Internacional"></option>
+            <option value="Dios Habla Hoy"></option>
+            <option value="Nueva Traducción Viviente"></option>
+          </datalist>
+          <p class="nota">El botón «Traer el texto de la Biblia» trae la Reina-Valera 1909, porque es la que se puede usar libremente. Si pegas el texto de otra versión, como la 1960, escribe aquí cuál es para que salga bien en la pantalla.</p>
           <p class="nota">Puedes escribir lo que quieras: un versículo, un anuncio o el lema del mes. El tamaño de la letra se acomoda solo.</p>
         </div>
 
