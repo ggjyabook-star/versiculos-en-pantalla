@@ -82,7 +82,22 @@ svg .lleno { fill: currentColor; stroke: none; }
 .secundario.peligro { color: #ffb1b1; }
 .secundario.confirmar { background: #5a1f24; color: #fff; border-color: #a33; }
 
-.lista { list-style: none; margin: 0; padding: 0 8px 16px; overflow-y: auto; flex: 1; }
+.lado-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.lista { list-style: none; margin: 0; padding: 0 8px 16px; }
+.lado-cab.seccion { border-top: 1px solid var(--borde); padding-top: 18px; }
+.nota-lado { margin: 0; padding: 0 16px 20px; font-size: 12.5px; color: var(--tenue); }
+.casilla { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--tenue); }
+.casilla input { width: 17px; height: 17px; accent-color: var(--oro); }
+textarea.letra { min-height: 300px; font-size: 19px; }
+.estrofas { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.estrofa { position: relative; text-align: left; padding: 10px 12px 12px; border-radius: 12px; border: 1px solid var(--borde); background: var(--panel); min-height: 92px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.estrofa:hover { border-color: rgba(255,255,255,.25); }
+.estrofa.sel { border-color: var(--oro); }
+.estrofa.aire { box-shadow: inset 0 0 0 2px var(--aire); }
+.estrofa .n { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--oro); display: flex; gap: 6px; align-items: center; }
+.estrofa .t { font-family: var(--f-verso); font-size: 15px; line-height: 1.25; color: var(--texto); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.estrofa img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 6px; }
+.estrofas .vacia { color: var(--tenue); font-size: 13px; }
 .item { position: relative; display: grid; grid-template-columns: 16px 20px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 8px; border-radius: 12px; border: 1px solid transparent; }
 .item:hover { background: rgba(255,255,255,.035); }
 .item.sel { background: var(--panel2); border-color: rgba(241,210,154,.35); }
@@ -214,11 +229,33 @@ body.soltando::after {
         <input type="file" id="archivoImg" accept="image/*" multiple hidden>
       </div>
     </div>
-    <div class="marcar">
-      <button type="button" id="marcarTodos">Marcar todos</button>
-      <button type="button" id="desmarcarTodos">Quitar todos</button>
+    <div class="lado-scroll">
+      <div class="marcar">
+        <button type="button" id="marcarTodos">Marcar todos</button>
+        <button type="button" id="desmarcarTodos">Quitar todos</button>
+      </div>
+      <ul class="lista" id="lista" aria-label="Versículos e imágenes de la presentación"></ul>
+
+      <div class="lado-cab seccion">
+        <div>
+          <h2>Canciones</h2>
+          <p id="cuantasCanciones"></p>
+        </div>
+        <div class="agregar">
+          <button type="button" class="secundario" id="agregarCancion" title="Escribir o pegar una letra">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Canción
+          </button>
+          <button type="button" class="secundario" id="subirCancion" title="Subir .txt, Word, PowerPoint o PDF">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg>
+            Subir
+          </button>
+          <input type="file" id="archivoCancion" accept=".txt,.docx,.pptx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" multiple hidden>
+        </div>
+      </div>
+      <ul class="lista" id="listaCanciones" aria-label="Canciones"></ul>
+      <p class="nota-lado" id="sinCanciones">Agrega una canción escribiendo la letra o sube un archivo de texto, Word, PowerPoint o PDF.</p>
     </div>
-    <ul class="lista" id="lista" aria-label="Versículos de la presentación"></ul>
   </aside>
 
   <main class="editor">
@@ -281,10 +318,46 @@ body.soltando::after {
           <p class="nota">Puedes escribir lo que quieras: un versículo, un anuncio o el lema del mes. El tamaño de la letra se acomoda solo.</p>
         </div>
 
-        <div class="campo">
+        </div>
+
+        <div class="campos" id="camposCancion" hidden>
+          <p class="aviso" id="avisoCancion" aria-live="polite" style="margin-bottom:-12px"></p>
+          <div class="campo">
+            <label for="tituloCancion">Título de la canción</label>
+            <input type="text" id="tituloCancion" placeholder="Ejemplo: Cuán grande es Él" autocomplete="off">
+            <label class="casilla"><input type="checkbox" id="mostrarTitulo"> Mostrar el título abajo de cada estrofa</label>
+          </div>
+          <div class="campo" id="campoLetra">
+            <label for="letra">Letra</label>
+            <textarea id="letra" class="letra" placeholder="Escribe o pega la letra aquí.&#10;&#10;Deja una línea en blanco entre estrofas:&#10;cada estrofa sale en una pantalla."></textarea>
+          </div>
+          <div class="campo">
+            <div class="fila">
+              <button type="button" class="secundario" id="subirLetra">
+                <svg class="ico" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg>
+                Subir letra o presentación
+              </button>
+              <input type="file" id="archivoLetra" accept=".txt,.docx,.pptx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+              <button type="button" class="secundario" id="quitarPdf" hidden>Quitar el PDF y escribir la letra</button>
+            </div>
+            <p class="nota">Acepta texto (.txt), Word (.docx), PowerPoint (.pptx) y PDF. De Word y PowerPoint se saca la letra para ponerla con nuestros fondos (cada diapositiva de PowerPoint es una estrofa). Un PDF se proyecta tal cual se ve, página por página: si quieres el diseño de tu PowerPoint, guárdalo como PDF y súbelo.</p>
+          </div>
+          <div class="campo" id="campoPaginas" hidden>
+            <span class="titulo" id="tituloAjustePdf">Cómo se ven las páginas</span>
+            <div class="fila" role="group" aria-labelledby="tituloAjustePdf">
+              <button type="button" class="opcion" id="pdfContener" aria-pressed="true">Completas, sin recortar</button>
+              <button type="button" class="opcion" id="pdfCubrir" aria-pressed="false">Llenar toda la pantalla</button>
+            </div>
+          </div>
+          <div class="campo">
+            <span class="titulo">Estrofas · toca una para verla y, si la proyección está abierta, mostrarla</span>
+            <div class="estrofas" id="estrofas"></div>
+          </div>
+        </div>
+
+        <div class="campo" id="campoFondo">
           <span class="titulo" id="tituloFondos">Fondo</span>
           <div class="fondos" id="fondos" role="radiogroup" aria-labelledby="tituloFondos"></div>
-        </div>
         </div>
 
         <div class="acciones">

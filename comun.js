@@ -11,17 +11,43 @@
       .filter((v) => v && typeof v === "object")
       .map((v, i) => ({
         id: String(v.id || "i" + Date.now().toString(36) + i),
-        tipo: v.tipo === "imagen" ? "imagen" : "verso",
+        tipo: v.tipo === "imagen" || v.tipo === "cancion" ? v.tipo : "verso",
+        paginas: Array.isArray(v.paginas) ? v.paginas.filter(Boolean).map(String) : [],
+        ...(Array.isArray(v.paginasData) ? { paginasData: v.paginasData } : {}),
         ref: String(v.ref || ""),
         texto: String(v.texto || ""),
         fondo: window.FONDOS && window.FONDOS[v.fondo] ? v.fondo : "estrellas",
         activo: v.activo !== false,
         imagen: v.imagen ? String(v.imagen) : "",
         ajuste: v.ajuste === "cubrir" ? "cubrir" : "contener",
+        verTitulo: v.verTitulo !== false,
         ...(v.imagenData ? { imagenData: String(v.imagenData) } : {}),
       }));
   }
-  const tieneContenido = (v) => (v.tipo === "imagen" ? !!v.imagen : !!v.texto.trim());
+  const tieneContenido = (v) =>
+    v.tipo === "imagen" ? !!v.imagen : v.tipo === "cancion" ? !!(v.texto.trim() || v.paginas.length) : !!v.texto.trim();
+
+  // Una línea en blanco separa las estrofas: cada estrofa es una diapositiva
+  const estrofas = (texto) => texto.replace(/\r/g, "").split(/\n[ \t]*\n+/).map((e) => e.replace(/^\s+|\s+$/g, "")).filter(Boolean);
+
+  // Orden de proyección: primero versículos e imágenes, luego las canciones
+  const ordenados = (l) => [...l.filter((v) => v.tipo !== "cancion"), ...l.filter((v) => v.tipo === "cancion")];
+
+  // Convierte la lista en diapositivas (una canción se vuelve varias)
+  function diapositivas(l) {
+    const out = [];
+    for (const v of ordenados(l)) {
+      if (v.activo === false || !tieneContenido(v)) continue;
+      if (v.tipo !== "cancion") { out.push({ ...v, item: v.id, parte: 1, partes: 1 }); continue; }
+      if (v.paginas.length) {
+        v.paginas.forEach((p, k) => out.push({ id: v.id + "#" + k, item: v.id, tipo: "imagen", imagen: p, ajuste: v.ajuste, ref: v.ref, texto: "", fondo: v.fondo, parte: k + 1, partes: v.paginas.length, cancion: true }));
+      } else {
+        const es = estrofas(v.texto);
+        es.forEach((e, k) => out.push({ id: v.id + "#" + k, item: v.id, tipo: "verso", texto: e, ref: v.verTitulo === false ? "" : v.ref, fondo: v.fondo, parte: k + 1, partes: es.length, cancion: true }));
+      }
+    }
+    return out;
+  }
   function lista() {
     try {
       const l = JSON.parse(localStorage.getItem(CLAVE));
@@ -83,7 +109,8 @@
     // Borra las imágenes que ya ninguna diapositiva usa
     async limpia(l) {
       try {
-        const usadas = new Set(l.filter((v) => v.tipo === "imagen").map((v) => v.imagen));
+        const usadas = new Set();
+        for (const v of l) { if (v.imagen) usadas.add(v.imagen); for (const p of v.paginas || []) usadas.add(p); }
         for (const k of await imagenes.claves()) if (!usadas.has(k)) await imagenes.borra(k);
       } catch (e) {}
     },
@@ -92,5 +119,5 @@
   let canal = null;
   try { canal = new BroadcastChannel("vp"); } catch (e) {}
 
-  window.VP = { CLAVE, porDefecto, limpia, lista, guardaLista, leer, guardar, canal, tieneContenido, imagenes };
+  window.VP = { CLAVE, porDefecto, limpia, lista, guardaLista, leer, guardar, canal, tieneContenido, estrofas, ordenados, diapositivas, imagenes };
 })();

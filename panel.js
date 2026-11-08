@@ -35,23 +35,31 @@
   const GRIP = '<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
   let arrastra = null;
 
+  const elCanciones = $("listaCanciones");
+  const esCancion = (v) => v.tipo === "cancion";
+  const listaDe = (v) => (esCancion(v) ? elCanciones : elLista);
+  const buscaLi = (id) => document.querySelector(`.lado [data-id="${CSS.escape(id)}"]`);
   function cuenta() {
-    const activos = lista.filter((v) => v.activo !== false && VP.tieneContenido(v)).length;
-    elCuantos.textContent = `${activos} de ${lista.length} en la presentación`;
+    const otros = lista.filter((v) => !esCancion(v)), canciones = lista.filter(esCancion);
+    const on = (l) => l.filter((v) => v.activo !== false && VP.tieneContenido(v)).length;
+    elCuantos.textContent = `${on(otros)} de ${otros.length} en la presentación`;
+    $("cuantasCanciones").textContent = canciones.length ? `${on(canciones)} de ${canciones.length} en la presentación` : "";
+    $("sinCanciones").hidden = canciones.length > 0;
   }
-  // Número de turno de cada versículo marcado (en el orden de la lista)
+  // Número de turno de cada elemento marcado (primero versículos e imágenes, luego canciones)
   let numeros = {};
   function numera() {
     numeros = {};
     if (cajaAzar && cajaAzar.checked) return;
     let n = 0;
-    for (const v of lista) if (v.activo !== false && VP.tieneContenido(v)) numeros[v.id] = ++n;
+    for (const v of VP.ordenados(lista)) if (v.activo !== false && VP.tieneContenido(v)) numeros[v.id] = ++n;
   }
   function pintaLista() {
     cuenta();
     numera();
     elLista.innerHTML = "";
-    for (const v of lista) elLista.appendChild(itemLista(v));
+    elCanciones.innerHTML = "";
+    for (const v of lista) listaDe(v).appendChild(itemLista(v));
   }
   function rellenaItem(li, v) {
     const ref = li.querySelector(".ref");
@@ -62,7 +70,7 @@
       n.title = "Turno en la presentación";
       ref.appendChild(n);
     }
-    ref.appendChild(document.createTextNode(v.ref.trim() || (v.tipo === "imagen" ? "Imagen" : "Sin cita")));
+    ref.appendChild(document.createTextNode(v.ref.trim() || (v.tipo === "imagen" ? "Imagen" : esCancion(v) ? "Canción sin título" : "Sin cita")));
     if (v.id === enPantalla) {
       const a = document.createElement("span");
       a.className = "aire"; a.textContent = "EN PANTALLA";
@@ -73,6 +81,22 @@
       ref.appendChild(a);
     }
     const chip = li.querySelector(".chip");
+    if (esCancion(v) && v.paginas.length) {
+      li.querySelector(".frag").textContent = `Canción · ${v.paginas.length} página${v.paginas.length > 1 ? "s" : ""} de PDF`;
+      chip.classList.add("foto");
+      chip.title = "Presentación en PDF";
+      chip.style.background = "#000";
+      VP.imagenes.url(v.paginas[0]).then((u) => { if (u) chip.style.background = `#000 url("${u}")`; });
+      return;
+    }
+    if (esCancion(v)) {
+      const n = VP.estrofas(v.texto).length;
+      chip.classList.remove("foto");
+      li.querySelector(".frag").textContent = n ? `Canción · ${n} estrofa${n > 1 ? "s" : ""}` : "Falta la letra";
+      chip.style.background = (INFO[v.fondo] || INFO.estrellas).color;
+      chip.title = "Fondo: " + (INFO[v.fondo] || INFO.estrellas).nombre;
+      return;
+    }
     if (v.tipo === "imagen") {
       li.querySelector(".frag").textContent = "Imagen · " + (v.ajuste === "cubrir" ? "llena la pantalla" : "completa");
       chip.classList.add("foto");
@@ -100,8 +124,8 @@
     caja.addEventListener("change", () => {
       v.activo = caja.checked;
       guarda(true); pintaLista();
-      const otra = elLista.querySelector(`[data-id="${CSS.escape(v.id)}"] .activo`);
-      if (otra) otra.focus();
+      const otra = buscaLi(v.id);
+      if (otra) otra.querySelector(".activo").focus();
     });
     li.querySelector(".info").addEventListener("click", () => selecciona(v.id));
     rellenaItem(li, v);
@@ -113,21 +137,22 @@
     });
     li.addEventListener("dragend", () => { arrastra = null; li.classList.remove("arrastrando"); limpiaMarcas(); });
     const despues = (e) => { const r = li.getBoundingClientRect(); return e.clientY > r.top + r.height / 2; };
+    const mismaSeccion = () => { const a = lista.find((x) => x.id === arrastra); return a && esCancion(a) === esCancion(v); };
     li.addEventListener("dragover", (e) => {
-      if (!arrastra || arrastra === v.id) return;
+      if (!arrastra || arrastra === v.id || !mismaSeccion()) return;
       e.preventDefault();
       limpiaMarcas();
       li.classList.add(despues(e) ? "marca-abajo" : "marca-arriba");
     });
     li.addEventListener("drop", (e) => {
-      if (!arrastra || arrastra === v.id) return;
+      if (!arrastra || arrastra === v.id || !mismaSeccion()) return;
       e.preventDefault();
       mueve(arrastra, v.id, despues(e));
     });
     return li;
   }
   function limpiaMarcas() {
-    elLista.querySelectorAll(".marca-arriba,.marca-abajo").forEach((n) => n.classList.remove("marca-arriba", "marca-abajo"));
+    document.querySelectorAll(".lado .marca-arriba,.lado .marca-abajo").forEach((n) => n.classList.remove("marca-arriba", "marca-abajo"));
   }
   function mueve(id, destinoId, despues) {
     const i = lista.findIndex((x) => x.id === id);
@@ -138,17 +163,19 @@
     guarda(true); pintaLista();
   }
   function actualizaItem(v) {
-    const li = elLista.querySelector(`[data-id="${CSS.escape(v.id)}"]`);
+    const li = buscaLi(v.id);
     if (li) rellenaItem(li, v);
     cuenta();
   }
 
   // ---------- Editor ----------
+  let estrofaSel = 0;
   function selecciona(id) {
     sel = id;
+    estrofaSel = 0;
     pintaLista();
     pintaEditor(true);
-    const li = elLista.querySelector(".item.sel");
+    const li = document.querySelector(".lado .item.sel");
     if (li) li.scrollIntoView({ block: "nearest" });
   }
   function pintaEditor(forzar) {
@@ -156,21 +183,216 @@
     $("editor").hidden = !v;
     $("sinSeleccion").hidden = !!v;
     if (!v) return;
-    const esImg = v.tipo === "imagen";
+    const esImg = v.tipo === "imagen", esCan = esCancion(v), conPdf = esCan && v.paginas.length > 0;
     $("camposImagen").hidden = !esImg;
-    $("camposVerso").hidden = esImg;
+    $("camposVerso").hidden = esImg || esCan;
+    $("camposCancion").hidden = !esCan;
+    $("campoFondo").hidden = esImg || conPdf;
     $("fondoTodos").hidden = esImg;
+    $("proyectar").lastChild.textContent = esCan ? " Proyectar esta estrofa" : " Proyectar este ahora";
     if (forzar) { avisa(""); }
-    if (esImg) {
+    for (const b of elFondos.children) b.setAttribute("aria-checked", String(b.dataset.fondo === v.fondo));
+    if (esCan) {
+      if (forzar || document.activeElement !== $("tituloCancion")) $("tituloCancion").value = v.ref;
+      if (forzar || document.activeElement !== $("letra")) $("letra").value = v.texto;
+      $("mostrarTitulo").checked = v.verTitulo !== false;
+      $("mostrarTitulo").parentElement.hidden = conPdf;
+      $("campoLetra").hidden = conPdf;
+      $("quitarPdf").hidden = !conPdf;
+      $("campoPaginas").hidden = !conPdf;
+      $("pdfContener").setAttribute("aria-pressed", String(v.ajuste !== "cubrir"));
+      $("pdfCubrir").setAttribute("aria-pressed", String(v.ajuste === "cubrir"));
+      pintaEstrofas();
+    } else if (esImg) {
       if (forzar || document.activeElement !== $("nombreImg")) $("nombreImg").value = v.ref;
       $("ajContener").setAttribute("aria-pressed", String(v.ajuste !== "cubrir"));
       $("ajCubrir").setAttribute("aria-pressed", String(v.ajuste === "cubrir"));
     } else {
       if (forzar || document.activeElement !== inCita) inCita.value = v.ref;
       if (forzar || document.activeElement !== inTexto) inTexto.value = v.texto;
-      for (const b of elFondos.children) b.setAttribute("aria-checked", String(b.dataset.fondo === v.fondo));
     }
     pintaPrevia();
+  }
+
+  // ---------- Canciones ----------
+  const partesDe = (v) => (v.paginas.length ? v.paginas.map((p) => ({ imagen: p })) : VP.estrofas(v.texto).map((t) => ({ texto: t })));
+  function pintaEstrofas() {
+    const v = elegido(); if (!v || !esCancion(v)) return;
+    const caja = $("estrofas");
+    const partes = partesDe(v);
+    if (estrofaSel >= partes.length) estrofaSel = Math.max(0, partes.length - 1);
+    caja.innerHTML = "";
+    if (!partes.length) { caja.innerHTML = '<p class="vacia">Cuando escribas la letra aparecerán aquí las estrofas.</p>'; return; }
+    partes.forEach((p, k) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      const alAire = viva() && estado.id === v.id && estado.parte === k + 1;
+      b.className = "estrofa" + (k === estrofaSel ? " sel" : "") + (alAire ? " aire" : "");
+      const n = document.createElement("span");
+      n.className = "n"; n.textContent = (p.imagen ? "Página " : "Estrofa ") + (k + 1);
+      if (alAire) { const a = document.createElement("span"); a.className = "aire"; a.textContent = "EN PANTALLA"; n.appendChild(a); }
+      b.appendChild(n);
+      if (p.imagen) {
+        const im = document.createElement("img"); im.alt = "";
+        VP.imagenes.url(p.imagen).then((u) => { if (u) im.src = u; });
+        b.appendChild(im);
+      } else {
+        const t = document.createElement("span"); t.className = "t"; t.textContent = p.texto;
+        b.appendChild(t);
+      }
+      b.addEventListener("click", () => {
+        estrofaSel = k;
+        if (viva()) { if (v.activo === false) { v.activo = true; guarda(true); pintaLista(); } manda({ tipo: "ir", id: v.id, parte: k + 1 }); }
+        pintaEstrofas(); pintaPrevia();
+      });
+      caja.appendChild(b);
+    });
+  }
+  $("tituloCancion").addEventListener("input", () => { const v = elegido(); if (!v) return; v.ref = $("tituloCancion").value; actualizaItem(v); pintaPrevia(); guarda(); });
+  $("letra").addEventListener("input", () => { const v = elegido(); if (!v) return; v.texto = $("letra").value; actualizaItem(v); pintaEstrofas(); pintaPrevia(); guarda(); });
+  $("mostrarTitulo").addEventListener("change", () => { const v = elegido(); if (!v) return; v.verTitulo = $("mostrarTitulo").checked; guarda(true); pintaPrevia(); });
+  $("pdfContener").addEventListener("click", () => ponAjuste("contener"));
+  $("pdfCubrir").addEventListener("click", () => ponAjuste("cubrir"));
+  $("quitarPdf").addEventListener("click", () => {
+    const v = elegido(); if (!v) return;
+    v.paginas = []; guarda(true); pintaEditor(true); actualizaItem(v); VP.imagenes.limpia(lista);
+    $("letra").focus();
+  });
+  function nuevaCancion(datos) {
+    return { id: nuevoId(), tipo: "cancion", ref: "", texto: "", fondo: "aurora", activo: true, imagen: "", ajuste: "contener", paginas: [], verTitulo: true, ...datos };
+  }
+  $("agregarCancion").addEventListener("click", () => {
+    const it = nuevaCancion({});
+    lista.push(it);
+    guarda(true); selecciona(it.id);
+    $("tituloCancion").focus();
+  });
+  $("subirCancion").addEventListener("click", () => $("archivoCancion").click());
+  $("archivoCancion").addEventListener("change", async () => {
+    const archivos = [...$("archivoCancion").files];
+    $("archivoCancion").value = "";
+    let ultimo = null;
+    for (const f of archivos) {
+      const r = await leeArchivoCancion(f);
+      if (!r) continue;
+      const it = nuevaCancion({ ref: sinExtension(f.name), ...r });
+      lista.push(it); ultimo = it;
+    }
+    if (ultimo) { guarda(true); selecciona(ultimo.id); avisa(archivos.length > 1 ? "Canciones agregadas. Revisa que las estrofas hayan quedado bien." : "Canción agregada. Revisa que las estrofas hayan quedado bien.", "ok"); }
+  });
+  $("subirLetra").addEventListener("click", () => $("archivoLetra").click());
+  $("archivoLetra").addEventListener("change", async () => {
+    const v = elegido(), f = $("archivoLetra").files[0];
+    $("archivoLetra").value = "";
+    if (!v || !f) return;
+    const r = await leeArchivoCancion(f);
+    if (!r) return;
+    v.texto = r.texto || "";
+    v.paginas = r.paginas || [];
+    if (!v.ref.trim()) v.ref = sinExtension(f.name);
+    estrofaSel = 0;
+    guarda(true); pintaEditor(true); actualizaItem(v); VP.imagenes.limpia(lista);
+    avisa("Listo. Revisa que las estrofas hayan quedado bien.", "ok");
+  });
+
+  // ---------- Leer archivos de letra o presentación ----------
+  const cargas = {};
+  const cargaScript = (src) => cargas[src] || (cargas[src] = new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.onload = res;
+    s.onerror = () => { delete cargas[src]; rej(new Error("sin conexión")); };
+    document.head.appendChild(s);
+  }));
+  const JSZIP = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  const xml = (s) => new DOMParser().parseFromString(s, "application/xml");
+  // Texto de un párrafo de Office: une los trozos y respeta los saltos de línea
+  function textoParrafo(p, ns, t, br) {
+    let s = "";
+    const recorre = (n) => {
+      for (const h of n.childNodes) {
+        if (h.namespaceURI === ns && h.localName === t) s += h.textContent;
+        else if (h.namespaceURI === ns && (h.localName === br || h.localName === "cr")) s += "\n";
+        else if (h.namespaceURI === ns && h.localName === "tab") s += " ";
+        else if (h.nodeType === 1) recorre(h);
+      }
+    };
+    recorre(p);
+    return s.replace(/[ \t]+/g, " ").trim();
+  }
+  const ordenaLetra = (t) => t.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+
+  async function leeArchivoCancion(f) {
+    const nombre = f.name.toLowerCase();
+    try {
+      if (nombre.endsWith(".txt") || f.type === "text/plain") return { texto: ordenaLetra(await f.text()) };
+      if (nombre.endsWith(".docx") || nombre.endsWith(".pptx")) {
+        avisa("Leyendo el archivo…");
+        await cargaScript(JSZIP);
+        const zip = await window.JSZip.loadAsync(f);
+        if (nombre.endsWith(".docx")) {
+          const doc = xml(await zip.file("word/document.xml").async("string"));
+          const ps = [...doc.getElementsByTagNameNS(NS_W, "p")].map((p) => textoParrafo(p, NS_W, "t", "br"));
+          const texto = ordenaLetra(ps.join("\n"));
+          if (!texto) throw new Error("vacío");
+          return { texto };
+        }
+        // PowerPoint: cada diapositiva con texto es una estrofa
+        const nombres = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+          .sort((a, b) => +a.match(/(\d+)\.xml$/)[1] - +b.match(/(\d+)\.xml$/)[1]);
+        const estrofas = [];
+        for (const n of nombres) {
+          const d = xml(await zip.file(n).async("string"));
+          const lineas = [...d.getElementsByTagNameNS(NS_A, "p")].map((p) => textoParrafo(p, NS_A, "t", "br")).filter(Boolean);
+          if (lineas.length) estrofas.push(lineas.join("\n"));
+        }
+        if (!estrofas.length) throw new Error("vacío");
+        return { texto: estrofas.join("\n\n") };
+      }
+      if (nombre.endsWith(".pdf") || f.type === "application/pdf") return await leePdf(f);
+      if (/\.(ppt|doc|key|pages)$/.test(nombre)) {
+        avisa("Ese formato es antiguo. Ábrelo y guárdalo como .pptx, .docx o PDF, y súbelo otra vez.", "error");
+        return null;
+      }
+      avisa("Ese archivo no se puede leer. Usa .txt, Word (.docx), PowerPoint (.pptx) o PDF.", "error");
+      return null;
+    } catch (e) {
+      avisa(e.message === "sin conexión"
+        ? "Para leer Word, PowerPoint o PDF se necesita internet la primera vez. Revisa la conexión."
+        : e.message === "vacío" ? "No encontré letra en ese archivo. Si es un PowerPoint con imágenes, guárdalo como PDF y súbelo." : "No pude leer ese archivo. Si es PowerPoint, prueba guardarlo como PDF.", "error");
+      return null;
+    }
+  }
+  // PDF: cada página se guarda como imagen para proyectarla tal como se ve
+  async function leePdf(f) {
+    await cargaScript(PDFJS);
+    const lib = window.pdfjsLib;
+    if (!lib.GlobalWorkerOptions.workerSrc) {
+      try {
+        const codigo = await (await fetch(PDFJS_WORKER)).text();
+        lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([codigo], { type: "text/javascript" }));
+      } catch (e) { throw new Error("sin conexión"); }
+    }
+    const pdf = await lib.getDocument({ data: await f.arrayBuffer() }).promise;
+    if (pdf.numPages > 80) { avisa("Ese PDF tiene más de 80 páginas. Sube solo la canción.", "error"); return null; }
+    const paginas = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      avisa(`Preparando página ${i} de ${pdf.numPages}…`);
+      const pg = await pdf.getPage(i);
+      const base = pg.getViewport({ scale: 1 });
+      const vp = pg.getViewport({ scale: Math.min(3, 1920 / base.width) });
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      const c = cv.getContext("2d");
+      c.fillStyle = "#fff"; c.fillRect(0, 0, cv.width, cv.height);
+      // intent "print" evita depender de requestAnimationFrame (sigue aunque la pestaña quede atrás)
+      await pg.render({ canvasContext: c, viewport: vp, intent: "print" }).promise;
+      const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.9));
+      paginas.push(await VP.imagenes.guarda(blob));
+    }
+    return { paginas, texto: "" };
   }
   $("nombreImg").addEventListener("input", () => { const v = elegido(); if (!v) return; v.ref = $("nombreImg").value; actualizaItem(v); guarda(); });
   function ponAjuste(a) { const v = elegido(); if (!v) return; v.ajuste = a; guarda(true); pintaEditor(); actualizaItem(v); }
@@ -211,24 +433,32 @@
   const pImagen = $("pImagen");
   function pintaPrevia() {
     const v = elegido(); if (!v) return;
-    previa.classList.toggle("es-imagen", v.tipo === "imagen");
-    if (v.tipo === "imagen") {
+    // Una canción se ve por estrofas (o páginas del PDF)
+    let texto = v.texto, ref = v.ref, imagen = v.tipo === "imagen" ? v.imagen : "";
+    if (esCancion(v)) {
+      const p = partesDe(v)[estrofaSel] || {};
+      imagen = p.imagen || "";
+      texto = p.texto || "";
+      ref = v.verTitulo === false ? "" : v.ref;
+    }
+    previa.classList.toggle("es-imagen", !!imagen);
+    if (imagen) {
       pImagen.classList.toggle("cubrir", v.ajuste === "cubrir");
-      VP.imagenes.url(v.imagen).then((u) => { if (elegido() === v) pImagen.src = u || ""; });
+      VP.imagenes.url(imagen).then((u) => { if (elegido() === v) pImagen.src = u || ""; });
       return;
     }
     const f = FONDOS[v.fondo] ? v.fondo : "estrellas";
     if (escenaP.nombre !== f) preparaPrevia(f);
     pVerso.innerHTML = "";
-    if (v.texto.trim()) {
-      for (const l of v.texto.split("\n")) {
+    if (texto.trim()) {
+      for (const l of texto.split("\n")) {
         const s = document.createElement("span");
         s.className = "linea"; s.textContent = l || " ";
         pVerso.appendChild(s);
       }
-    } else pVerso.innerHTML = '<span class="linea fantasma">Aquí aparecerá el versículo</span>';
-    pCita.textContent = v.ref.trim();
-    pCita.hidden = !v.ref.trim();
+    } else pVerso.innerHTML = `<span class="linea fantasma">${esCancion(v) ? "Aquí aparecerá la letra" : "Aquí aparecerá el versículo"}</span>`;
+    pCita.textContent = ref.trim();
+    pCita.hidden = !ref.trim();
     ajustaPrevia();
   }
   function ajustaPrevia() {
@@ -302,7 +532,7 @@
       .replace(/(?<!\p{L})dió(?!\p{L})/gu, "dio").replace(/(?<!\p{L})vió(?!\p{L})/gu, "vio").replace(/(?<!\p{L})fuí(?!\p{L})/gu, "fui");
   }
   function avisa(txt, tipo) {
-    for (const el of [aviso, $("avisoImg")]) { el.textContent = txt; el.className = "aviso" + (tipo ? " " + tipo : ""); }
+    for (const el of [aviso, $("avisoImg"), $("avisoCancion")]) { el.textContent = txt; el.className = "aviso" + (tipo ? " " + tipo : ""); }
   }
 
   async function traer() {
@@ -441,7 +671,7 @@
     const i = lista.indexOf(v);
     lista.splice(i, 1);
     guarda(true);
-    if (v.tipo === "imagen") VP.imagenes.limpia(lista);
+    if (v.tipo !== "verso") VP.imagenes.limpia(lista);
     sel = lista[Math.min(i, lista.length - 1)] ? lista[Math.min(i, lista.length - 1)].id : null;
     pintaLista(); pintaEditor(true);
   });
@@ -464,9 +694,12 @@
     // Las imágenes van dentro del archivo para que la copia sirva en otra computadora
     const copia = [];
     for (const v of lista) {
-      if (v.tipo === "imagen") {
-        const b = await VP.imagenes.lee(v.imagen).catch(() => null);
-        copia.push({ ...v, imagenData: b ? await aTexto(b) : undefined });
+      const lee = async (id) => { const b = await VP.imagenes.lee(id).catch(() => null); return b ? aTexto(b) : null; };
+      if (v.tipo === "imagen") copia.push({ ...v, imagenData: (await lee(v.imagen)) || undefined });
+      else if (v.paginas && v.paginas.length) {
+        const datos = [];
+        for (const p of v.paginas) datos.push(await lee(p));
+        copia.push({ ...v, paginasData: datos });
       } else copia.push(v);
     }
     const blob = new Blob([JSON.stringify({ versiculos: copia }, null, 2)], { type: "application/json" });
@@ -487,7 +720,16 @@
         if (v.tipo === "imagen" && v.imagenData) {
           try { v.imagen = await VP.imagenes.guarda(await (await fetch(v.imagenData)).blob()); } catch (e) { v.imagen = ""; }
         }
+        if (Array.isArray(v.paginasData)) {
+          const ids = [];
+          for (const d of v.paginasData) {
+            if (!d) continue;
+            try { ids.push(await VP.imagenes.guarda(await (await fetch(d)).blob())); } catch (e) {}
+          }
+          v.paginas = ids;
+        }
         delete v.imagenData;
+        delete v.paginasData;
       }
       lista = l; sel = lista[0].id;
       guarda(true); pintaLista(); pintaEditor(true);
@@ -536,8 +778,8 @@
   // ---------- Control de la proyección ----------
   const manda = (m) => VP.canal && VP.canal.postMessage(m);
   const viva = () => Date.now() - ultimoEstado < 2500;
-  function abreProyeccion(inicio) {
-    const url = "./" + (inicio ? "?inicio=" + encodeURIComponent(inicio) : "");
+  function abreProyeccion(inicio, parte) {
+    const url = "./" + (inicio ? "?inicio=" + encodeURIComponent(inicio) + (parte > 1 ? "&parte=" + parte : "") : "");
     const w = window.open(url, "vp-proyeccion");
     if (!w) location.href = url;
   }
@@ -548,11 +790,12 @@
   $("rNegro").addEventListener("click", () => manda({ tipo: "negro" }));
   $("proyectar").addEventListener("click", () => {
     const v = elegido(); if (!v) return;
-    if (!VP.tieneContenido(v)) return avisa("Primero escribe el texto del versículo.", "error");
+    if (!VP.tieneContenido(v)) return avisa(esCancion(v) ? "Primero escribe la letra de la canción." : "Primero escribe el texto del versículo.", "error");
     if (v.activo === false) { v.activo = true; pintaLista(); }
     guarda(true);
-    if (viva()) manda({ tipo: "ir", id: v.id });
-    else abreProyeccion(v.id);
+    const parte = esCancion(v) ? estrofaSel + 1 : 1;
+    if (viva()) manda({ tipo: "ir", id: v.id, parte });
+    else abreProyeccion(v.id, parte);
   });
 
   function pintaRemoto() {
@@ -565,9 +808,11 @@
     }
     const v = lista.find((x) => x.id === estado.id);
     const s = lista.find((x) => x.id === estado.sigId);
-    let t = v ? `En pantalla: ${v.ref || "sin cita"}` : "Proyección abierta";
+    const nombre = (x) => x.ref || (x.tipo === "imagen" ? "imagen" : "sin título");
+    let t = v ? `En pantalla: ${nombre(v)}` : "Proyección abierta";
+    if (v && estado.partes > 1) t += ` (${estado.parte} de ${estado.partes})`;
     if (estado.negro) t = "Pantalla en negro · " + t;
-    if (estado.manual) t += s && s !== v ? ` · sigue: ${s.ref || "sin cita"}` : "";
+    if (estado.manual && s) t += s === v ? ` · sigue: ${v.paginas && v.paginas.length ? "página" : "estrofa"} ${estado.sigParte}` : ` · sigue: ${nombre(s)}`;
     else t += estado.tocando ? ` · cambia en ${estado.restante} s` : " · en pausa";
     $("enAire").textContent = t;
     $("rNegro").setAttribute("aria-pressed", String(!!estado.negro));
@@ -579,8 +824,14 @@
     VP.canal.addEventListener("message", (e) => {
       const m = e.data || {};
       if (m.tipo !== "estado") return;
+      const parteAntes = estado.parte, idAntes = estado.id;
       estado = m; ultimoEstado = Date.now();
       if (enPantalla !== m.id || sigPantalla !== m.sigId) { enPantalla = m.id; sigPantalla = m.sigId; pintaLista(); }
+      if ((parteAntes !== m.parte || idAntes !== m.id) && elegido() && esCancion(elegido())) {
+        // sigue la estrofa en pantalla si estás viendo esa canción
+        if (m.id === sel) estrofaSel = Math.max(0, m.parte - 1);
+        pintaEstrofas(); pintaPrevia();
+      }
       pintaRemoto();
     });
     manda({ tipo: "hola" });

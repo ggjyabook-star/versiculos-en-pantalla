@@ -41,22 +41,28 @@
   });
 
   // ---------- Versículos (los que están activos en el panel) ----------
-  const activos = () => VP.lista().filter((v) => v.activo !== false && VP.tieneContenido(v));
+  const activos = () => VP.diapositivas(VP.lista());
   const diapo = $("diapo"), img = $("imagen");
   let VERSOS = activos();
   let orden = [], pos = 0, tocando = true, restante = 0, total = 1, cambiando = false, negro = false, turno = 0;
   const actual = () => VERSOS[orden[pos]];
 
+  // Al azar se revuelven las diapositivas, pero las estrofas de una canción siguen juntas y en orden
   function baraja() {
-    const a = VERSOS.map((_, i) => i);
+    const a = [];
+    VERSOS.forEach((v, i) => {
+      const g = a[a.length - 1];
+      if (g && VERSOS[g[0]].item === v.item) g.push(i); else a.push([i]);
+    });
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    const fondo = (g, fin) => VERSOS[fin ? g[g.length - 1] : g[0]].fondo;
     for (let i = 1; i < a.length; i++) {
-      if (VERSOS[a[i]].fondo === VERSOS[a[i - 1]].fondo) {
-        const j = a.findIndex((v, k) => k > i && VERSOS[v].fondo !== VERSOS[a[i - 1]].fondo);
+      if (fondo(a[i]) === fondo(a[i - 1], true)) {
+        const j = a.findIndex((g, k) => k > i && fondo(g) !== fondo(a[i - 1], true));
         if (j > 0) [a[i], a[j]] = [a[j], a[i]];
       }
     }
-    return a;
+    return a.flat();
   }
   const nuevoOrden = () => (azar ? baraja() : VERSOS.map((_, i) => i));
   function duracion(v) {
@@ -176,9 +182,9 @@
     cambiaFondo(v.fondo);
     cuenta(); avisa();
   }
-  function irA(id) {
+  function irA(id, parte) {
     VERSOS = activos();
-    const i = VERSOS.findIndex((v) => v.id === id);
+    const i = VERSOS.findIndex((v) => v.item === id && v.parte === (parte || 1));
     if (i < 0) return;
     orden = nuevoOrden();
     muestra(orden.indexOf(i), true, true);
@@ -190,7 +196,8 @@
     const v = escena.hidden ? null : actual();
     const sig = orden.length ? VERSOS[orden[(pos + 1) % orden.length]] : null;
     VP.canal.postMessage({
-      tipo: "estado", id: v ? v.id : null, sigId: sig ? sig.id : null, tocando, negro, manual: modo === "manual",
+      tipo: "estado", id: v ? v.item : null, parte: v ? v.parte : 0, partes: v ? v.partes : 0,
+      sigId: sig ? sig.item : null, sigParte: sig ? sig.parte : 0, tocando, negro, manual: modo === "manual",
       restante: isFinite(restante) ? Math.max(0, Math.ceil(restante)) : null, pos: pos + 1, n: orden.length,
     });
   }
@@ -281,7 +288,7 @@
   if (VP.canal) {
     VP.canal.addEventListener("message", (e) => {
       const m = e.data || {};
-      if (m.tipo === "ir") irA(m.id);
+      if (m.tipo === "ir") irA(m.id, m.parte);
       else if (m.tipo === "sig") siguiente();
       else if (m.tipo === "ant") anterior();
       else if (m.tipo === "pausa") ponPausa(tocando);
@@ -322,7 +329,7 @@
   orden = nuevoOrden();
   let primero = 0;
   if (inicio) {
-    const i = VERSOS.findIndex((v) => v.id === inicio);
+    const i = VERSOS.findIndex((v) => v.item === inicio && v.parte === (Number(params.get("parte")) || 1));
     if (i >= 0) primero = Math.max(0, orden.indexOf(i));
   }
   muestra(primero, false);
