@@ -36,7 +36,7 @@
   let arrastra = null;
 
   function cuenta() {
-    const activos = lista.filter((v) => v.activo !== false && v.texto.trim()).length;
+    const activos = lista.filter((v) => v.activo !== false && VP.tieneContenido(v)).length;
     elCuantos.textContent = `${activos} de ${lista.length} en la presentación`;
   }
   // Número de turno de cada versículo marcado (en el orden de la lista)
@@ -45,7 +45,7 @@
     numeros = {};
     if (cajaAzar && cajaAzar.checked) return;
     let n = 0;
-    for (const v of lista) if (v.activo !== false && v.texto.trim()) numeros[v.id] = ++n;
+    for (const v of lista) if (v.activo !== false && VP.tieneContenido(v)) numeros[v.id] = ++n;
   }
   function pintaLista() {
     cuenta();
@@ -62,7 +62,7 @@
       n.title = "Turno en la presentación";
       ref.appendChild(n);
     }
-    ref.appendChild(document.createTextNode(v.ref.trim() || "Sin cita"));
+    ref.appendChild(document.createTextNode(v.ref.trim() || (v.tipo === "imagen" ? "Imagen" : "Sin cita")));
     if (v.id === enPantalla) {
       const a = document.createElement("span");
       a.className = "aire"; a.textContent = "EN PANTALLA";
@@ -72,8 +72,17 @@
       a.className = "sig-tag"; a.textContent = "SIGUE";
       ref.appendChild(a);
     }
-    li.querySelector(".frag").textContent = v.texto.replace(/\n/g, " ").trim() || "Falta el texto";
     const chip = li.querySelector(".chip");
+    if (v.tipo === "imagen") {
+      li.querySelector(".frag").textContent = "Imagen · " + (v.ajuste === "cubrir" ? "llena la pantalla" : "completa");
+      chip.classList.add("foto");
+      chip.title = "Imagen";
+      chip.style.background = "#000";
+      VP.imagenes.url(v.imagen).then((u) => { if (u) chip.style.background = `#000 url("${u}")`; });
+      return;
+    }
+    chip.classList.remove("foto");
+    li.querySelector(".frag").textContent = v.texto.replace(/\n/g, " ").trim() || "Falta el texto";
     chip.style.background = (INFO[v.fondo] || INFO.estrellas).color;
     chip.title = "Fondo: " + (INFO[v.fondo] || INFO.estrellas).nombre;
   }
@@ -147,12 +156,26 @@
     $("editor").hidden = !v;
     $("sinSeleccion").hidden = !!v;
     if (!v) return;
-    if (forzar || document.activeElement !== inCita) inCita.value = v.ref;
-    if (forzar || document.activeElement !== inTexto) inTexto.value = v.texto;
-    for (const b of elFondos.children) b.setAttribute("aria-checked", String(b.dataset.fondo === v.fondo));
-    if (forzar) { aviso.textContent = ""; aviso.className = "aviso"; }
+    const esImg = v.tipo === "imagen";
+    $("camposImagen").hidden = !esImg;
+    $("camposVerso").hidden = esImg;
+    $("fondoTodos").hidden = esImg;
+    if (forzar) { avisa(""); }
+    if (esImg) {
+      if (forzar || document.activeElement !== $("nombreImg")) $("nombreImg").value = v.ref;
+      $("ajContener").setAttribute("aria-pressed", String(v.ajuste !== "cubrir"));
+      $("ajCubrir").setAttribute("aria-pressed", String(v.ajuste === "cubrir"));
+    } else {
+      if (forzar || document.activeElement !== inCita) inCita.value = v.ref;
+      if (forzar || document.activeElement !== inTexto) inTexto.value = v.texto;
+      for (const b of elFondos.children) b.setAttribute("aria-checked", String(b.dataset.fondo === v.fondo));
+    }
     pintaPrevia();
   }
+  $("nombreImg").addEventListener("input", () => { const v = elegido(); if (!v) return; v.ref = $("nombreImg").value; actualizaItem(v); guarda(); });
+  function ponAjuste(a) { const v = elegido(); if (!v) return; v.ajuste = a; guarda(true); pintaEditor(); actualizaItem(v); }
+  $("ajContener").addEventListener("click", () => ponAjuste("contener"));
+  $("ajCubrir").addEventListener("click", () => ponAjuste("cubrir"));
   inCita.addEventListener("input", () => { const v = elegido(); if (!v) return; v.ref = inCita.value; actualizaItem(v); pintaPrevia(); guarda(); });
   inTexto.addEventListener("input", () => { const v = elegido(); if (!v) return; v.texto = inTexto.value; actualizaItem(v); pintaPrevia(); guarda(); });
   inCita.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); traer(); } });
@@ -185,8 +208,15 @@
     lienzo.height = Math.max(1, Math.round(previa.clientHeight * k));
     escenaP = { nombre, dibujar: FONDOS[nombre].crear(lienzo.width, lienzo.height), t0: escenaP.nombre === nombre ? escenaP.t0 : performance.now() };
   }
+  const pImagen = $("pImagen");
   function pintaPrevia() {
     const v = elegido(); if (!v) return;
+    previa.classList.toggle("es-imagen", v.tipo === "imagen");
+    if (v.tipo === "imagen") {
+      pImagen.classList.toggle("cubrir", v.ajuste === "cubrir");
+      VP.imagenes.url(v.imagen).then((u) => { if (elegido() === v) pImagen.src = u || ""; });
+      return;
+    }
     const f = FONDOS[v.fondo] ? v.fondo : "estrellas";
     if (escenaP.nombre !== f) preparaPrevia(f);
     pVerso.innerHTML = "";
@@ -213,7 +243,7 @@
 
   let cuadroN = 0;
   function cuadro(ahora) {
-    if (escenaP.dibujar && !$("editor").hidden) escenaP.dibujar(ctxP, (ahora - escenaP.t0) / 1000);
+    if (escenaP.dibujar && !$("editor").hidden && !previa.classList.contains("es-imagen")) escenaP.dibujar(ctxP, (ahora - escenaP.t0) / 1000);
     // las miniaturas a medio ritmo para no cansar la computadora
     if (cuadroN++ % 2 === 0) for (const m of miniaturas) m.dibujar(m.c, ahora / 1000);
     requestAnimationFrame(cuadro);
@@ -271,7 +301,9 @@
       .replace(/(?<!\p{L})(F|f)ué(?!\p{L})/gu, "$1ue")
       .replace(/(?<!\p{L})dió(?!\p{L})/gu, "dio").replace(/(?<!\p{L})vió(?!\p{L})/gu, "vio").replace(/(?<!\p{L})fuí(?!\p{L})/gu, "fui");
   }
-  function avisa(txt, tipo) { aviso.textContent = txt; aviso.className = "aviso" + (tipo ? " " + tipo : ""); }
+  function avisa(txt, tipo) {
+    for (const el of [aviso, $("avisoImg")]) { el.textContent = txt; el.className = "aviso" + (tipo ? " " + tipo : ""); }
+  }
 
   async function traer() {
     const v = elegido(); if (!v) return;
@@ -315,7 +347,7 @@
   // ---------- Acciones ----------
   $("agregar").addEventListener("click", () => {
     const actual = elegido();
-    const nuevo = { id: nuevoId(), ref: "", texto: "", fondo: actual ? actual.fondo : "estrellas", activo: true };
+    const nuevo = { id: nuevoId(), tipo: "verso", ref: "", texto: "", fondo: actual && actual.tipo !== "imagen" ? actual.fondo : "estrellas", activo: true, imagen: "", ajuste: "contener" };
     const i = actual ? lista.indexOf(actual) + 1 : lista.length;
     lista.splice(i, 0, nuevo);
     guarda(true);
@@ -323,6 +355,72 @@
     inCita.focus();
     avisa("Escribe la cita y toca «Traer el texto de la Biblia», o escribe el texto a mano.");
   });
+  // ---------- Imágenes ----------
+  // Achica fotos muy grandes (más de 2560 px) para que carguen rápido; GIF y SVG se guardan tal cual
+  async function preparaImagen(file) {
+    if (/gif|svg/.test(file.type)) return file;
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch (e) { return null; }
+    const k = Math.min(1, 2560 / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size < 4e6) { bmp.close && bmp.close(); return file; }
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    bmp.close && bmp.close();
+    const tipo = file.type === "image/png" ? "image/png" : "image/jpeg";
+    return new Promise((r) => cv.toBlob((b) => r(b || file), tipo, 0.9));
+  }
+  const sinExtension = (n) => n.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
+  async function agregaImagenes(archivos) {
+    const fotos = [...archivos].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name));
+    if (!fotos.length) return avisa("Ese archivo no es una imagen. Usa JPG, PNG, WebP o GIF.", "error");
+    avisa(fotos.length > 1 ? `Cargando ${fotos.length} imágenes…` : "Cargando la imagen…");
+    let pos = elegido() ? lista.indexOf(elegido()) + 1 : lista.length, ultimo = null, fallidas = 0;
+    for (const f of fotos) {
+      const blob = await preparaImagen(f);
+      if (!blob) { fallidas++; continue; }
+      try {
+        const imagen = await VP.imagenes.guarda(blob);
+        const it = { id: nuevoId(), tipo: "imagen", ref: sinExtension(f.name), texto: "", fondo: "estrellas", activo: true, imagen, ajuste: "contener" };
+        lista.splice(pos++, 0, it);
+        ultimo = it;
+      } catch (e) { fallidas++; }
+    }
+    if (ultimo) { guarda(true); selecciona(ultimo.id); }
+    if (fallidas) avisa(`${fallidas === fotos.length ? "No se pudo" : `No se pudieron ${fallidas} de ${fotos.length}`}: ese formato no se puede abrir (las fotos HEIC de iPhone, por ejemplo). Pídela en JPG o PNG.`, "error");
+    else avisa(fotos.length > 1 ? `Se agregaron ${fotos.length} imágenes.` : "Imagen agregada. Ya puedes proyectarla.", "ok");
+  }
+  $("agregarImg").addEventListener("click", () => $("archivoImg").click());
+  $("archivoImg").addEventListener("change", async () => { await agregaImagenes($("archivoImg").files); $("archivoImg").value = ""; });
+  $("cambiarImg").addEventListener("click", () => $("archivoCambio").click());
+  $("archivoCambio").addEventListener("change", async () => {
+    const v = elegido(), f = $("archivoCambio").files[0];
+    $("archivoCambio").value = "";
+    if (!v || !f) return;
+    const blob = await preparaImagen(f);
+    if (!blob) return avisa("Ese formato no se puede abrir. Pídela en JPG o PNG.", "error");
+    v.imagen = await VP.imagenes.guarda(blob);
+    guarda(true); pintaEditor(); actualizaItem(v);
+    VP.imagenes.limpia(lista);
+    avisa("Imagen cambiada.", "ok");
+  });
+  // Arrastrar archivos de imagen sobre el panel
+  const traeArchivos = (e) => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+  let salida;
+  addEventListener("dragover", (e) => {
+    if (!traeArchivos(e)) return;
+    e.preventDefault();
+    document.body.classList.add("soltando");
+    clearTimeout(salida);
+    salida = setTimeout(() => document.body.classList.remove("soltando"), 300);
+  });
+  addEventListener("drop", (e) => {
+    if (!traeArchivos(e)) return;
+    e.preventDefault();
+    document.body.classList.remove("soltando");
+    agregaImagenes(e.dataTransfer.files);
+  });
+
   $("duplicar").addEventListener("click", () => {
     const v = elegido(); if (!v) return;
     const copia = { ...v, id: nuevoId() };
@@ -343,6 +441,7 @@
     const i = lista.indexOf(v);
     lista.splice(i, 1);
     guarda(true);
+    if (v.tipo === "imagen") VP.imagenes.limpia(lista);
     sel = lista[Math.min(i, lista.length - 1)] ? lista[Math.min(i, lista.length - 1)].id : null;
     pintaLista(); pintaEditor(true);
   });
@@ -356,11 +455,21 @@
     lista = VP.porDefecto();
     sel = lista[0] ? lista[0].id : null;
     guarda(true); pintaLista(); pintaEditor(true);
+    VP.imagenes.limpia(lista);
   });
 
   // Copia en archivo
-  $("exportar").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ versiculos: lista }, null, 2)], { type: "application/json" });
+  const aTexto = (blob) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(null); fr.readAsDataURL(blob); });
+  $("exportar").addEventListener("click", async () => {
+    // Las imágenes van dentro del archivo para que la copia sirva en otra computadora
+    const copia = [];
+    for (const v of lista) {
+      if (v.tipo === "imagen") {
+        const b = await VP.imagenes.lee(v.imagen).catch(() => null);
+        copia.push({ ...v, imagenData: b ? await aTexto(b) : undefined });
+      } else copia.push(v);
+    }
+    const blob = new Blob([JSON.stringify({ versiculos: copia }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "versiculos-en-pantalla.json";
@@ -374,8 +483,15 @@
       const d = JSON.parse(await f.text());
       const l = VP.limpia(Array.isArray(d) ? d : d.versiculos || []);
       if (!l.length) throw new Error("vacío");
+      for (const v of l) {
+        if (v.tipo === "imagen" && v.imagenData) {
+          try { v.imagen = await VP.imagenes.guarda(await (await fetch(v.imagenData)).blob()); } catch (e) { v.imagen = ""; }
+        }
+        delete v.imagenData;
+      }
       lista = l; sel = lista[0].id;
       guarda(true); pintaLista(); pintaEditor(true);
+      VP.imagenes.limpia(lista);
       guardado.textContent = `Se cargaron ${l.length} versículos del archivo`;
     } catch (e) {
       guardado.textContent = "Ese archivo no tiene versículos de esta presentación.";
@@ -432,7 +548,7 @@
   $("rNegro").addEventListener("click", () => manda({ tipo: "negro" }));
   $("proyectar").addEventListener("click", () => {
     const v = elegido(); if (!v) return;
-    if (!v.texto.trim()) return avisa("Primero escribe el texto del versículo.", "error");
+    if (!VP.tieneContenido(v)) return avisa("Primero escribe el texto del versículo.", "error");
     if (v.activo === false) { v.activo = true; pintaLista(); }
     guarda(true);
     if (viva()) manda({ tipo: "ir", id: v.id });

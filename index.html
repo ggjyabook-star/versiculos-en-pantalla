@@ -83,6 +83,11 @@ body.quieto, body.quieto * { cursor: none; }
 @keyframes aparece { to { opacity: 1; filter: blur(0); transform: none; } }
 .verso.quieto .palabra, .cita.quieto { animation: none; opacity: 1; filter: none; transform: none; }
 
+.diapo { position: fixed; inset: 0; z-index: 2; background: #000; opacity: 0; pointer-events: none; transition: opacity .9s ease; }
+.diapo.visible { opacity: 1; }
+.diapo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.diapo.cubrir img { object-fit: cover; }
+.controles, .progreso, .ayuda { z-index: 4; }
 .negro { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .8s ease; z-index: 3; }
 .negro.activo { opacity: 1; }
 .vacio { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 24px; font-size: clamp(16px, 2vw, 26px); color: rgba(251,246,238,.85); }
@@ -196,6 +201,7 @@ body.quieto .controles { opacity: 0; transform: translate(-50%, 12px); pointer-e
   <p>No hay versículos activos.</p>
   <a href="panel.html" target="vp-panel">Abrir el panel para agregar versículos</a>
 </div>
+<div class="diapo" id="diapo" aria-hidden="true"><img id="imagen" alt=""></div>
 <div class="negro" id="negro" aria-hidden="true"></div>
 
 <div class="version">Reina-Valera 1909</div>

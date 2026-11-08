@@ -41,7 +41,8 @@
   });
 
   // ---------- Versículos (los que están activos en el panel) ----------
-  const activos = () => VP.lista().filter((v) => v.activo !== false && v.texto.trim());
+  const activos = () => VP.lista().filter((v) => v.activo !== false && VP.tieneContenido(v));
+  const diapo = $("diapo"), img = $("imagen");
   let VERSOS = activos();
   let orden = [], pos = 0, tocando = true, restante = 0, total = 1, cambiando = false, negro = false, turno = 0;
   const actual = () => VERSOS[orden[pos]];
@@ -61,11 +62,33 @@
   function duracion(v) {
     if (!v) return 10;
     if (modo === "manual") return Infinity;
+    if (modo === "auto" && v.tipo === "imagen") return 12;
     if (modo === "auto") return Math.min(24, Math.max(10, 6 + v.texto.length * 0.07));
     return Number(modo) || 15;
   }
 
+  // Diapositiva de imagen: capa negra con la foto encima de todo
+  async function ponImagen(v) {
+    diapo.classList.toggle("cubrir", v.ajuste === "cubrir");
+    const u = await VP.imagenes.url(v.imagen);
+    const ahora = actual();
+    if (!ahora || ahora.id !== v.id) return;
+    if (!u) { diapo.classList.remove("visible"); return; }
+    if (img.getAttribute("src") !== u) {
+      img.src = u;
+      try { await img.decode(); } catch (e) {}
+    }
+    diapo.classList.add("visible");
+  }
   function pinta(v, quieto) {
+    if (v.tipo === "imagen") {
+      verso.innerHTML = "";
+      cita.textContent = "";
+      cita.hidden = true;
+      ponImagen(v);
+      return;
+    }
+    diapo.classList.remove("visible");
     let i = 0;
     verso.innerHTML = "";
     for (const linea of v.texto.split("\n")) {
@@ -105,6 +128,7 @@
   function muestraVacio() {
     turno++; cambiando = false;
     vacio.hidden = false; escena.hidden = true;
+    diapo.classList.remove("visible");
     total = restante = 1;
     cambiaFondo("estrellas");
     cuenta(); avisa();
@@ -131,6 +155,7 @@
     if (conTransicion && !escena.hidden) {
       cambiando = true;
       escena.classList.add("saliendo");
+      diapo.classList.remove("visible");
       setTimeout(entra, reducido ? 600 : 950);
     } else entra();
   }
@@ -147,7 +172,7 @@
     if (i < 0) return muestra(antes ? Math.min(pos, orden.length - 1) : 0, !!antes, true);
     pos = orden.indexOf(i);
     const v = VERSOS[i];
-    if (!cambiando && (v.texto !== antes.texto || v.ref !== antes.ref)) pinta(v, true);
+    if (!cambiando && (v.texto !== antes.texto || v.ref !== antes.ref || v.tipo !== antes.tipo || v.imagen !== antes.imagen || v.ajuste !== antes.ajuste)) pinta(v, true);
     cambiaFondo(v.fondo);
     cuenta(); avisa();
   }
