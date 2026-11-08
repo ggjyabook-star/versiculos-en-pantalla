@@ -339,5 +339,5 @@
   if (document.fonts) document.fonts.ready.then(ajusta);
   requestAnimationFrame(cuadro);
 
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

@@ -966,4 +966,7 @@
   pintaEditor(true);
   if (document.fonts) document.fonts.ready.then(ajustaPrevia);
   requestAnimationFrame(cuadro);
+
+  // Copia para usar sin internet (la página, sus archivos y las librerías de lectura)
+  if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
