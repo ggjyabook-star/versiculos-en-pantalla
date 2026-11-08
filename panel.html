@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel · Versículos en Pantalla</title>
+<meta name="theme-color" content="#0b0c14">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Marcellus&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Cabina de control: lista a la izquierda, vista previa 16:9 y edición a la derecha */
+:root {
+  --fondo: #0b0c14;
+  --panel: #131521;
+  --panel2: #1a1d2c;
+  --borde: rgba(255,255,255,.09);
+  --texto: #f3efe7;
+  --tenue: #a29fb3;
+  --oro: #f1d29a;
+  --aire: #ff5d5d;
+  --ok: #7ee2a8;
+  --f-verso: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --f-cita: "Marcellus", Georgia, serif;
+  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--fondo); color: var(--texto); font: 15px/1.5 var(--f-ui); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; }
+svg.ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+svg .lleno { fill: currentColor; stroke: none; }
+
+.barra {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: rgba(11,12,20,.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--borde);
+}
+.marca { font-family: var(--f-cita); font-size: 19px; letter-spacing: .04em; color: var(--texto); text-decoration: none; white-space: nowrap; }
+.marca span { font-family: var(--f-ui); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro); margin-left: 8px; }
+.remoto { display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); margin-left: auto; min-width: 0; }
+.remoto button { height: 36px; min-width: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.remoto button:hover { background: rgba(255,255,255,.08); }
+.remoto button[aria-pressed="true"] { background: #000; color: var(--oro); box-shadow: inset 0 0 0 1px var(--oro); }
+.remoto .estado { font-size: 13px; color: var(--tenue); padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; display: flex; align-items: center; gap: 8px; }
+.remoto .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--aire); box-shadow: 0 0 0 4px rgba(255,93,93,.18); flex: none; }
+.remoto.apagado button { opacity: .35; pointer-events: none; }
+.remoto.apagado .punto { background: #555; box-shadow: none; }
+.primario { height: 42px; padding: 0 18px; border: 0; border-radius: 11px; background: var(--oro); color: #1d1405; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.primario:hover { background: #f6dcae; }
+
+.marco { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); }
+.lado {
+  position: sticky; top: var(--barra, 63px); height: calc(100vh - var(--barra, 63px));
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--borde); background: var(--panel);
+}
+.lado-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 12px; }
+.lado-cab h2 { margin: 0; font-size: 15px; }
+.lado-cab p { margin: 2px 0 0; font-size: 12.5px; color: var(--tenue); }
+.secundario { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel2); display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; white-space: nowrap; }
+.secundario:hover { background: #23273a; }
+.secundario.peligro { color: #ffb1b1; }
+.secundario.confirmar { background: #5a1f24; color: #fff; border-color: #a33; }
+
+.lista { list-style: none; margin: 0; padding: 0 8px 16px; overflow-y: auto; flex: 1; }
+.item { position: relative; display: grid; grid-template-columns: 16px 20px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 8px; border-radius: 12px; border: 1px solid transparent; }
+.item:hover { background: rgba(255,255,255,.035); }
+.item.sel { background: var(--panel2); border-color: rgba(241,210,154,.35); }
+.item.apagado .info { opacity: .45; }
+.item.arrastrando { opacity: .4; }
+.item.marca-arriba::before, .item.marca-abajo::after { content: ""; position: absolute; left: 8px; right: 8px; height: 2px; background: var(--oro); border-radius: 2px; }
+.item.marca-arriba::before { top: -1px; }
+.item.marca-abajo::after { bottom: -1px; }
+.asa { color: var(--tenue); cursor: grab; display: flex; }
+.asa svg { width: 16px; height: 16px; fill: currentColor; }
+.item input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--oro); cursor: pointer; }
+.info { all: unset; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.info:focus-visible { outline: 2px solid var(--oro); outline-offset: 4px; border-radius: 6px; }
+.ref { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.frag { font-size: 12.5px; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aire { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #fff; background: var(--aire); border-radius: 4px; padding: 1px 6px; }
+.chip { width: 34px; height: 22px; border-radius: 6px; border: 1px solid rgba(255,255,255,.18); }
+
+.editor { padding-block: 24px 48px; padding-left: max(16px, min(4vw, 40px)); padding-right: max(16px, min(4vw, 40px)); min-width: 0; }
+.editor-in { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+.previa { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 14px; overflow: hidden; background: #000; box-shadow: 0 20px 60px rgba(0,0,0,.45), 0 0 0 1px var(--borde); }
+.previa canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.previa .velo { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 55% at 50% 50%, rgba(0,0,0,.34), rgba(0,0,0,0) 70%), radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%); }
+.previa-texto { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em; padding: 4% 6%; text-align: center; }
+.p-verso { margin: 0; font-family: var(--f-verso); font-weight: 500; line-height: 1.22; color: #fbf6ee; text-wrap: balance; text-shadow: 0 2px 20px rgba(0,0,0,.55); max-width: 88%; }
+.p-verso .linea { display: block; }
+.p-verso .fantasma { opacity: .5; font-style: italic; }
+.p-cita { margin: 0; font-family: var(--f-cita); letter-spacing: .22em; text-transform: uppercase; color: var(--oro); text-shadow: 0 2px 14px rgba(0,0,0,.6); display: flex; align-items: center; gap: .9em; }
+.p-cita::before, .p-cita::after { content: ""; width: 4vw; max-width: 60px; height: 1px; background: linear-gradient(90deg, transparent, var(--oro)); }
+.p-cita::after { background: linear-gradient(90deg, var(--oro), transparent); }
+.previa .proyectar { position: absolute; right: 14px; bottom: 14px; }
+.previa .etiqueta { position: absolute; left: 14px; top: 12px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+
+.campo { display: flex; flex-direction: column; gap: 8px; }
+.campo label, .titulo { font-size: 13px; font-weight: 600; color: var(--tenue); letter-spacing: .02em; }
+.fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.fila > input { flex: 1 1 240px; min-width: 0; }
+input[type="text"], textarea, select {
+  background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; outline: none;
+}
+input[type="text"]:focus, textarea:focus, select:focus { border-color: rgba(241,210,154,.6); }
+#cita { font-size: 17px; font-weight: 600; height: 46px; }
+textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--f-verso); font-size: 21px; line-height: 1.35; }
+.nota { font-size: 12.5px; color: var(--tenue); margin: 0; }
+.aviso { font-size: 13px; min-height: 1.4em; margin: 0; color: var(--tenue); }
+.aviso.ok { color: var(--ok); }
+.aviso.error { color: #ff9d9d; }
+
+.fondos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.fondo-op { position: relative; padding: 0; border: 2px solid transparent; border-radius: 12px; background: var(--panel); overflow: hidden; text-align: left; }
+.fondo-op canvas { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; }
+.fondo-op span { display: block; padding: 7px 10px 8px; font-size: 13px; font-weight: 600; }
+.fondo-op:hover { border-color: rgba(255,255,255,.25); }
+.fondo-op[aria-checked="true"] { border-color: var(--oro); }
+.fondo-op[aria-checked="true"]::after { content: "✓"; position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--oro); color: #1d1405; font-weight: 800; font-size: 14px; display: grid; place-items: center; }
+
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.ajustes { border: 1px solid var(--borde); border-radius: 14px; background: var(--panel); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.ajustes h3 { margin: 0; font-size: 15px; }
+.ajustes .fila label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.ajustes input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--oro); }
+.guardado { font-size: 12.5px; color: var(--tenue); }
+.guardado.error { color: #ff9d9d; }
+.vacio-ed { color: var(--tenue); padding: 40px 0; text-align: center; }
+
+@media (max-width: 900px) {
+  .marco { grid-template-columns: minmax(0, 1fr); }
+  .lado { position: static; height: auto; max-height: 46vh; border-right: 0; border-bottom: 1px solid var(--borde); }
+  .remoto { order: 3; margin-left: 0; width: 100%; }
+  .remoto .estado { max-width: none; flex: 1; }
+  .barra .primario { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<header class="barra">
+  <a class="marca" href="./" target="vp-proyeccion">Versículos en Pantalla<span>Panel</span></a>
+  <div class="remoto apagado" id="remoto" aria-label="Control de la proyección">
+    <button type="button" id="rAnt" aria-label="Versículo anterior" title="Anterior"><svg class="ico" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button type="button" id="rPausa" aria-label="Pausar o seguir" title="Pausa"><svg class="ico" viewBox="0 0 24 24" id="rPausaIco"><rect class="lleno" x="6" y="5" width="4" height="14" rx="1"/><rect class="lleno" x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+    <button type="button" id="rSig" aria-label="Siguiente versículo" title="Siguiente"><svg class="ico" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button type="button" id="rNegro" aria-pressed="false" title="Poner la pantalla en negro">Negro</button>
+    <span class="estado"><span class="punto"></span><span id="enAire">La proyección no está abierta</span></span>
+  </div>
+  <button type="button" class="primario" id="abrir">
+    <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+    Abrir proyección
+  </button>
+</header>
+
+<div class="marco">
+  <aside class="lado">
+    <div class="lado-cab">
+      <div>
+        <h2>Versículos</h2>
+        <p id="cuantos"></p>
+      </div>
+      <button type="button" class="secundario" id="agregar">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Agregar
+      </button>
+    </div>
+    <ul class="lista" id="lista" aria-label="Versículos de la presentación"></ul>
+  </aside>
+
+  <main class="editor">
+    <div class="editor-in">
+      <p class="vacio-ed" id="sinSeleccion" hidden>No hay versículos. Toca «Agregar» para poner el primero.</p>
+
+      <section id="editor" class="editor-in" style="gap:24px">
+        <div class="previa" id="previa">
+          <canvas id="lienzoPrevia" aria-hidden="true"></canvas>
+          <div class="velo"></div>
+          <div class="previa-texto">
+            <p class="p-verso" id="pVerso"></p>
+            <p class="p-cita" id="pCita"></p>
+          </div>
+          <span class="etiqueta">Vista previa</span>
+          <button type="button" class="primario proyectar" id="proyectar">
+            <svg class="ico" viewBox="0 0 24 24"><path class="lleno" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+            Proyectar este ahora
+          </button>
+        </div>
+
+        <div class="campo">
+          <label for="cita">Cita</label>
+          <div class="fila">
+            <input type="text" id="cita" placeholder="Ejemplo: Juan 3:16 o Salmos 23:1-3" autocomplete="off" spellcheck="false">
+            <button type="button" class="secundario" id="traer" style="height:46px">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H19"/></svg>
+              Traer el texto de la Biblia
+            </button>
+          </div>
+          <p class="aviso" id="aviso" aria-live="polite"></p>
+        </div>
+
+        <div class="campo">
+          <label for="texto">Texto del versículo</label>
+          <textarea id="texto" placeholder="Escribe o pega el versículo. Con Enter cortas la línea."></textarea>
+          <p class="nota">Puedes escribir lo que quieras: un versículo, un anuncio o el lema del mes. El tamaño de la letra se acomoda solo.</p>
+        </div>
+
+        <div class="campo">
+          <span class="titulo" id="tituloFondos">Fondo</span>
+          <div class="fondos" id="fondos" role="radiogroup" aria-labelledby="tituloFondos"></div>
+        </div>
+
+        <div class="acciones">
+          <button type="button" class="secundario" id="subir"><svg class="ico" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Subir</button>
+          <button type="button" class="secundario" id="bajar"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>Bajar</button>
+          <button type="button" class="secundario" id="duplicar"><svg class="ico" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>Duplicar</button>
+          <button type="button" class="secundario" id="fondoTodos"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Usar este fondo en todos</button>
+          <button type="button" class="secundario peligro" id="eliminar"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Eliminar</button>
+        </div>
+      </section>
+
+      <section class="ajustes" aria-labelledby="tituloAjustes">
+        <h3 id="tituloAjustes">Cómo corre la presentación</h3>
+        <div class="fila">
+          <label for="tiempo">Tiempo por versículo</label>
+          <select id="tiempo">
+            <option value="auto">Según largo (10 a 24 s)</option>
+            <option value="10">10 segundos</option>
+            <option value="15">15 segundos</option>
+            <option value="20">20 segundos</option>
+            <option value="30">30 segundos</option>
+            <option value="60">1 minuto</option>
+          </select>
+          <label><input type="checkbox" id="azar"> Orden al azar</label>
+        </div>
+        <div class="fila">
+          <button type="button" class="secundario" id="exportar"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Guardar copia en archivo</button>
+          <button type="button" class="secundario" id="importar"><svg class="ico" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg>Cargar desde archivo</button>
+          <input type="file" id="archivo" accept=".json,application/json" hidden>
+          <button type="button" class="secundario peligro" id="restaurar">Volver a los versículos originales</button>
+        </div>
+        <p class="nota">Los cambios se guardan solos en este navegador y la proyección los toma al instante. Abre el panel y la proyección en la misma computadora: el panel en tu pantalla y la proyección arrastrada al proyector. Para pasar tu lista a otra computadora, usa «Guardar copia en archivo» y luego «Cargar desde archivo».</p>
+        <span class="guardado" id="guardado" aria-live="polite">Guardado en este equipo</span>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script src="versiculos.js"></script>
+<script src="fondos.js"></script>
+<script src="comun.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>

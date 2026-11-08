@@ -1,6 +1,6 @@
 // Guarda la presentación para que siga funcionando sin internet (útil en el templo)
-const VERSION = "vp-1";
-const ARCHIVOS = ["./", "index.html", "versiculos.js", "fondos.js", "app.js"];
+const VERSION = "vp-2";
+const ARCHIVOS = ["./", "index.html", "panel.html", "versiculos.js", "fondos.js", "comun.js", "app.js", "panel.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));

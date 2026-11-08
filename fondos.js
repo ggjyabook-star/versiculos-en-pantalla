@@ -258,6 +258,79 @@
         c.globalCompositeOperation = "source-over";
       };
     } },
+
+    // Luciérnagas en el campo de noche, con luna
+    luciernagas: { escala: 0.5, crear(w, h) {
+      const m = Math.min(w, h);
+      const est = estrellas(Math.round((w * h) / 2500), w, h * 0.5);
+      const bichos = Array.from({ length: 70 }, () => ({
+        x: Math.random() * w, y: h * al(0.4, 0.97), rx: al(0.02, 0.08) * w, ry: al(0.02, 0.06) * h,
+        a: al(0.1, 0.35), b: al(0.1, 0.3), p: al(0, TAU), q: al(0, TAU), v: al(0.8, 2.2), r: al(0.004, 0.009) * m,
+      }));
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = lineal(c, 0, 0, 0, h, [[0, "#020611"], [0.5, "#06162a"], [1, "#0c2a24"]]);
+        c.fillRect(0, 0, w, h);
+        pintaEstrellas(c, est, t, 0.6);
+        c.globalCompositeOperation = "lighter";
+        brillo(c, w * 0.8, h * 0.18, h * 0.28, [200, 220, 255], 0.18);
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = "#eef3ff"; c.beginPath(); c.arc(w * 0.8, h * 0.18, h * 0.035, 0, TAU); c.fill();
+        cerro(c, w, h, 0.84, 0.12, 5, 0.8, "#081a1a", t * 1);
+        cerro(c, w, h, 0.97, 0.1, 9, 2.4, "#04100e", t * 2);
+        c.globalCompositeOperation = "lighter";
+        for (const b of bichos) {
+          const k = Math.max(0, Math.sin(t * b.v + b.p)), a = k * k;
+          if (a < 0.02) continue;
+          const x = b.x + Math.sin(t * b.a + b.p) * b.rx, y = b.y + Math.sin(t * b.b + b.q) * b.ry;
+          brillo(c, x, y, b.r * 6, [190, 255, 120], 0.35 * a);
+          c.fillStyle = `rgba(240,255,190,${0.9 * a})`; c.beginPath(); c.arc(x, y, b.r, 0, TAU); c.fill();
+        }
+        c.globalCompositeOperation = "source-over";
+      };
+    } },
+
+    // Nubes que pasan despacio en un cielo de mañana
+    nubes: { escala: 0.4, crear(w, h) {
+      const nubes = Array.from({ length: 11 }, () => {
+        const y = h * al(0.08, 0.78), s = al(0.6, 1.3) * (0.6 + y / h);
+        return {
+          x: al(-0.2, 1.2) * w, y, v: al(4, 12) * (0.5 + y / h) * (w / 800), a: al(0.35, 0.6),
+          partes: Array.from({ length: 6 }, () => ({ dx: al(-0.12, 0.12) * w * s, dy: al(-0.03, 0.03) * h * s, r: al(0.05, 0.1) * w * s })),
+        };
+      });
+      return (c, t) => {
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = lineal(c, 0, 0, 0, h, [[0, "#1d3b70"], [0.5, "#4f78b3"], [0.85, "#d9a897"], [1, "#f0c6a6"]]);
+        c.fillRect(0, 0, w, h);
+        c.globalCompositeOperation = "lighter";
+        brillo(c, w * 0.2, h * 0.95, h * 0.9, [255, 190, 140], 0.25);
+        c.globalCompositeOperation = "source-over";
+        const ancho = w * 1.6;
+        for (const n of nubes) {
+          const x = ((n.x + w * 0.3 + t * n.v) % ancho) - w * 0.3;
+          for (const p of n.partes) {
+            const px = x + p.dx, py = n.y + p.dy;
+            const g = c.createRadialGradient(px, py, 0, px, py, p.r);
+            g.addColorStop(0, `rgba(255,248,240,${n.a})`); g.addColorStop(0.6, `rgba(250,236,228,${n.a * 0.5})`); g.addColorStop(1, "rgba(250,236,228,0)");
+            c.fillStyle = g; c.beginPath(); c.arc(px, py, p.r, 0, TAU); c.fill();
+          }
+        }
+      };
+    } },
+  };
+
+  // Nombre y muestra de color de cada fondo (para el panel)
+  window.FONDOS_INFO = {
+    estrellas: { nombre: "Estrellitas", color: "linear-gradient(160deg,#02030a,#161a44 60%,#3b2559)" },
+    aurora: { nombre: "Aurora", color: "linear-gradient(160deg,#01030b,#0f5f58 55%,#5a3fa0)" },
+    amanecer: { nombre: "Amanecer", color: "linear-gradient(180deg,#5a3c70,#d77566 55%,#f5c48a)" },
+    rayos: { nombre: "Rayos de luz", color: "linear-gradient(180deg,#8a6430,#2b1a0a 60%,#070403)" },
+    luces: { nombre: "Luces", color: "radial-gradient(circle at 30% 40%,#c77dff77,transparent 45%),linear-gradient(135deg,#0b1030,#2a0f3e 50%,#3d1427)" },
+    mar: { nombre: "Mar", color: "linear-gradient(180deg,#3a3a73,#c3708a 45%,#1d2148 60%,#070b1e)" },
+    nebulosa: { nombre: "Nebulosa", color: "radial-gradient(circle at 35% 45%,#9646ff99,transparent 45%),radial-gradient(circle at 65% 60%,#ff46a077,transparent 45%),#03020b" },
+    luciernagas: { nombre: "Luciérnagas", color: "radial-gradient(circle at 40% 62%,#d4ff7a77,transparent 22%),linear-gradient(180deg,#020611,#0c2a24)" },
+    nubes: { nombre: "Nubes", color: "linear-gradient(180deg,#1d3b70,#4f78b3 50%,#f0c6a6)" },
   };
 
   window.FONDOS = FONDOS;
