@@ -54,12 +54,30 @@
     let n = 0;
     for (const v of VP.ordenados(lista)) if (v.activo !== false && VP.tieneContenido(v)) numeros[v.id] = ++n;
   }
+  // Filtro de canciones (búsqueda y «solo marcadas»); se muestran hasta 150 a la vez para que el panel no se ponga lento
+  let filtro = "", soloMarcadas = false;
+  const normal = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const pasaFiltro = (v) =>
+    (!soloMarcadas || v.activo !== false) &&
+    (!filtro || normal(v.ref).includes(filtro) || normal(v.texto).includes(filtro));
   function pintaLista() {
     cuenta();
     numera();
     elLista.innerHTML = "";
     elCanciones.innerHTML = "";
-    for (const v of lista) listaDe(v).appendChild(itemLista(v));
+    const MAX = 150;
+    let vistas = 0, ocultas = 0;
+    const frag = document.createDocumentFragment();
+    for (const v of lista) {
+      if (!esCancion(v)) { elLista.appendChild(itemLista(v)); continue; }
+      if (!pasaFiltro(v) && v.id !== sel) continue;
+      if (vistas >= MAX && v.id !== sel) { ocultas++; continue; }
+      frag.appendChild(itemLista(v)); vistas++;
+    }
+    elCanciones.appendChild(frag);
+    const mas = $("masCanciones");
+    mas.hidden = !ocultas && !(filtro && !vistas);
+    mas.textContent = filtro && !vistas ? "Ninguna canción coincide con la búsqueda." : `Hay ${ocultas} canciones más. Escribe en el buscador para encontrarlas.`;
   }
   function rellenaItem(li, v) {
     const ref = li.querySelector(".ref");
@@ -271,15 +289,42 @@
   $("archivoCancion").addEventListener("change", async () => {
     const archivos = [...$("archivoCancion").files];
     $("archivoCancion").value = "";
-    let ultimo = null;
+    let ultimo = null, deUnPaquete = 0, repetidas = 0;
+    // Repetida = mismo título y misma letra (si la letra cambia, es otra versión y se guarda)
+    const claveDe = (c) => sinAcento(c.ref.trim()) + "|" + sinAcento(c.texto).replace(/[^a-z0-9ñ]+/g, "");
+    const titulos = new Set(lista.filter(esCancion).map(claveDe));
     for (const f of archivos) {
       const r = await leeArchivoCancion(f);
       if (!r) continue;
+      if (r.varias) {
+        // De un paquete llegan apagadas: marcas solo las que vas a usar
+        for (const c of r.varias) {
+          const clave = claveDe(c);
+          if (titulos.has(clave)) { repetidas++; continue; }
+          titulos.add(clave);
+          const it = nuevaCancion({ ...c, activo: false });
+          lista.push(it); ultimo = ultimo || it; deUnPaquete++;
+        }
+        continue;
+      }
       const it = nuevaCancion({ ref: sinExtension(f.name), ...r });
       lista.push(it); ultimo = it;
     }
-    if (ultimo) { guarda(true); selecciona(ultimo.id); avisa(archivos.length > 1 ? "Canciones agregadas. Revisa que las estrofas hayan quedado bien." : "Canción agregada. Revisa que las estrofas hayan quedado bien.", "ok"); }
+    if (!ultimo) { if (repetidas) avisa(`Esas ${repetidas} canciones ya estaban en tu lista, con la misma letra.`, "ok"); return; }
+    if (!guardaSeguro()) return;
+    selecciona(ultimo.id);
+    if (deUnPaquete) {
+      avisa(`Se agregaron ${deUnPaquete} canciones${repetidas ? ` (${repetidas} no, porque estaban repetidas con la misma letra)` : ""}. Están sin marcar: márcalas o búscalas cuando las vayas a usar.`, "ok");
+    } else avisa(archivos.length > 1 ? "Canciones agregadas. Revisa que las estrofas hayan quedado bien." : "Canción agregada. Revisa que las estrofas hayan quedado bien.", "ok");
   });
+  // Guarda y avisa si el navegador ya no tiene espacio
+  function guardaSeguro() {
+    clearTimeout(reloj);
+    if (VP.guardaLista(lista)) { guardado.textContent = "Guardado en este equipo"; guardado.classList.remove("error"); return true; }
+    lista = VP.lista(); pintaLista(); pintaEditor(true);
+    avisa("No hay espacio en este navegador para tantas canciones. Sube menos o borra algunas.", "error");
+    return false;
+  }
   $("subirLetra").addEventListener("click", () => $("archivoLetra").click());
   $("archivoLetra").addEventListener("change", async () => {
     const v = elegido(), f = $("archivoLetra").files[0];
@@ -287,6 +332,7 @@
     if (!v || !f) return;
     const r = await leeArchivoCancion(f);
     if (!r) return;
+    if (r.varias) return avisa("Ese es un paquete con varias canciones. Súbelo con el botón «Subir» de la sección Canciones.", "error");
     v.texto = r.texto || "";
     v.paginas = r.paginas || [];
     if (!v.ref.trim()) v.ref = sinExtension(f.name);
@@ -324,9 +370,53 @@
   }
   const ordenaLetra = (t) => t.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
+  // Paquete de canciones de Quelea (.qsp): un zip con una canción en XML por archivo; cada <section> es una pantalla
+  const ROTA = ["aurora", "estrellas", "amanecer", "rayos", "luces", "mar", "nebulosa", "luciernagas", "nubes"];
+  const PISTAS = [
+    [/milky|star|estrell|galax|space|espacio|night|noche|univers/i, "estrellas"],
+    [/cloud|nube|sky|cielo/i, "nubes"],
+    [/\bsea\b|ocean|\bmar\b|water|agua|wave|\bola|beach|falls/i, "mar"],
+    [/sunrise|sunset|amanec|atardec|mountain|monta/i, "amanecer"],
+    [/light|\bluz\b|\bray|rayo|cross|cruz/i, "rayos"],
+    [/aurora/i, "aurora"],
+    [/bokeh|particul|swirl|blur|abstract|fiber/i, "luces"],
+    [/grass|pasto|campo|field/i, "luciernagas"],
+    [/nebula|vine/i, "nebulosa"],
+  ];
+  async function leeQsp(f) {
+    avisa("Abriendo el paquete de canciones…");
+    await cargaScript(JSZIP);
+    const zip = await window.JSZip.loadAsync(f);
+    const archivos = Object.values(zip.files).filter((z) => !z.dir && /\.xml$/i.test(z.name));
+    const canciones = [];
+    for (const [k, z] of archivos.entries()) {
+      if (k % 40 === 0) avisa(`Leyendo canciones… ${k} de ${archivos.length}`);
+      const d = xml(await z.async("string"));
+      if (d.getElementsByTagName("parsererror").length) continue;
+      const cancion = d.getElementsByTagName("song")[0];
+      if (!cancion) continue;
+      const titulo = (cancion.getElementsByTagName("title")[0] || {}).textContent || sinExtension(z.name.split("/").pop());
+      const secciones = [...cancion.getElementsByTagName("section")];
+      const estrofas = secciones
+        .map((s) => {
+          const l = [...s.children].find((h) => h.tagName === "lyrics");
+          return l ? l.textContent.replace(/\r/g, "").split("\n").map((x) => x.trim()).filter(Boolean).join("\n") : "";
+        })
+        .filter(Boolean);
+      if (!estrofas.length) continue;
+      const tema = (secciones[0] && secciones[0].getElementsByTagName("theme")[0] || {}).textContent || "";
+      const fondoOriginal = (tema.match(/background(?:video|image):([^$]+)/) || [, ""])[1];
+      const pista = PISTAS.find(([re]) => re.test(fondoOriginal) || re.test(titulo));
+      canciones.push({ ref: titulo.trim(), texto: estrofas.join("\n\n"), fondo: pista ? pista[1] : ROTA[canciones.length % ROTA.length] });
+    }
+    if (!canciones.length) throw new Error("vacío");
+    return { varias: canciones };
+  }
+
   async function leeArchivoCancion(f) {
     const nombre = f.name.toLowerCase();
     try {
+      if (nombre.endsWith(".qsp") || nombre.endsWith(".zip")) return await leeQsp(f);
       if (nombre.endsWith(".txt") || f.type === "text/plain") return { texto: ordenaLetra(await f.text()) };
       if (nombre.endsWith(".docx") || nombre.endsWith(".pptx")) {
         avisa("Leyendo el archivo…");
@@ -768,11 +858,22 @@
   cajaAzar.addEventListener("change", () => { VP.guardar("azar", cajaAzar.checked ? "1" : "0"); pintaLista(); });
 
   // Elegir varios de un jalón
-  $("marcarTodos").addEventListener("click", () => { for (const v of lista) v.activo = true; guarda(true); pintaLista(); });
+  $("marcarTodos").addEventListener("click", () => { for (const v of lista) if (!esCancion(v)) v.activo = true; guarda(true); pintaLista(); });
   $("desmarcarTodos").addEventListener("click", () => {
-    for (const v of lista) v.activo = false;
+    for (const v of lista) if (!esCancion(v)) v.activo = false;
     guarda(true); pintaLista();
     avisa("Ahora marca solo los versículos que vas a usar.");
+  });
+  $("quitarCanciones").addEventListener("click", () => { for (const v of lista) if (esCancion(v)) v.activo = false; guarda(true); pintaLista(); });
+  $("soloMarcadas").addEventListener("click", () => {
+    soloMarcadas = !soloMarcadas;
+    $("soloMarcadas").setAttribute("aria-pressed", String(soloMarcadas));
+    pintaLista();
+  });
+  let relojBusca;
+  $("buscarCancion").addEventListener("input", () => {
+    clearTimeout(relojBusca);
+    relojBusca = setTimeout(() => { filtro = normal($("buscarCancion").value.trim()); pintaLista(); }, 150);
   });
 
   // ---------- Control de la proyección ----------

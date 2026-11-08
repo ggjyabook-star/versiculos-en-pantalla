@@ -86,6 +86,10 @@ svg .lleno { fill: currentColor; stroke: none; }
 .lista { list-style: none; margin: 0; padding: 0 8px 16px; }
 .lado-cab.seccion { border-top: 1px solid var(--borde); padding-top: 18px; }
 .nota-lado { margin: 0; padding: 0 16px 20px; font-size: 12.5px; color: var(--tenue); }
+.buscar-cancion { padding: 0 16px 8px; }
+.buscar-cancion input { width: 100%; background: var(--fondo); border: 1px solid var(--borde); border-radius: 10px; padding: 9px 12px; outline: none; }
+.buscar-cancion input:focus { border-color: rgba(241,210,154,.6); }
+.marcar button[aria-pressed="true"] { color: var(--oro); background: rgba(241,210,154,.12); }
 .casilla { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--tenue); }
 .casilla input { width: 17px; height: 17px; accent-color: var(--oro); }
 textarea.letra { min-height: 300px; font-size: 19px; }
@@ -250,11 +254,19 @@ body.soltando::after {
             <svg class="ico" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg>
             Subir
           </button>
-          <input type="file" id="archivoCancion" accept=".txt,.docx,.pptx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" multiple hidden>
+          <input type="file" id="archivoCancion" accept=".qsp,.zip,.txt,.docx,.pptx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" multiple hidden>
         </div>
       </div>
+      <div class="buscar-cancion">
+        <input type="search" id="buscarCancion" placeholder="Buscar canción por título o letra" autocomplete="off" aria-label="Buscar canción">
+      </div>
+      <div class="marcar">
+        <button type="button" id="soloMarcadas" aria-pressed="false">Ver solo las marcadas</button>
+        <button type="button" id="quitarCanciones">Quitar todas</button>
+      </div>
       <ul class="lista" id="listaCanciones" aria-label="Canciones"></ul>
-      <p class="nota-lado" id="sinCanciones">Agrega una canción escribiendo la letra o sube un archivo de texto, Word, PowerPoint o PDF.</p>
+      <p class="nota-lado" id="masCanciones" hidden></p>
+      <p class="nota-lado" id="sinCanciones">Agrega una canción escribiendo la letra o sube un archivo de texto, Word, PowerPoint, PDF o un paquete de canciones de Quelea (.qsp).</p>
     </div>
   </aside>
 
